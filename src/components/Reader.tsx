@@ -11,9 +11,10 @@ interface ReaderProps {
   baseDir: string
   theme: Theme
   fontSize: number
+  onEdit?: () => void
 }
 
-export default function Reader({ source, baseDir, theme, fontSize }: ReaderProps) {
+export default function Reader({ source, baseDir, theme, fontSize, onEdit }: ReaderProps) {
   const html = useMemo(
     () =>
       renderMarkdown(source, {
@@ -28,6 +29,13 @@ export default function Reader({ source, baseDir, theme, fontSize }: ReaderProps
       className={`theme-${theme}`}
       style={{ '--reader-font-size': `${fontSize}px` } as CSSProperties}
     >
+      {onEdit && (
+        <div className="snug-toolbar">
+          <button className="snug-tool-button" onClick={onEdit} title="Edit this note">
+            ✎ Edit
+          </button>
+        </div>
+      )}
       <article className="snug-reader" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   )
