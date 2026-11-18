@@ -1,0 +1,11 @@
+.snug-reader {
+  --reader-max-width: 720px;
+  --reader-line-height: 1.7;
+  --reader-font-size: 18px;
+
+  max-width: var(--reader-max-width);
+  margin: 0 auto;
+  padding: 2.5rem 2rem 5rem;
+  font-size: var(--reader-font-size);
+  line-height: var(--reader-line-height);
+}
