@@ -1,13 +1,18 @@
 import { useEffect, useReducer, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import Reader from './components/Reader'
 import Editor from './components/Editor'
 import LibrarySidebar from './components/LibrarySidebar'
-import type { Theme } from './lib/theme'
-import { useDocument, type DocumentIo } from './hooks/useDocument'
+import { useDocument, tauriDocumentIo, type DocumentIo } from './hooks/useDocument'
+import {
+  DEFAULT_SETTINGS,
+  getSettings,
+  updateSettings,
+  type AppSettings,
+} from './lib/settings'
 import {
   openIntent,
   sessionReducer,
-  type OpenMode,
   type SessionState,
 } from './lib/session'
 import './styles/tabs.css'
@@ -29,24 +34,57 @@ The whole point of a quiet reading space is that the text gets out of the way an
   'reading-list.md': '# Reading list\n\n- [ ] The Art of Reading\n- [ ] Deep Work\n',
 }
 
-// Temporary in-memory IO until the Rust file commands land in Task 2.
-const sampleIo: DocumentIo = {
-  read: async (path) => NOTES[path] ?? '',
-  write: async () => {},
+// Use real files when running in Tauri; keep sample notes for browser preview.
+const io: DocumentIo = {
+  read: async (path) => {
+    try {
+      return await tauriDocumentIo.read(path)
+    } catch {
+      return NOTES[path] ?? `# ${path}\n\n(Preview only — install Snug to open real files.)`
+    }
+  },
+  write: async (path, contents) => {
+    try {
+      await tauriDocumentIo.write(path, contents)
+    } catch {
+      NOTES[path] = contents
+    }
+  },
+}
+
+const queryNote =
+  typeof window === 'undefined'
+    ? null
+    : new URLSearchParams(window.location.search).get('note')
+
+function dirname(path: string): string {
+  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return index >= 0 ? path.slice(0, index) : ''
 }
 
 const initialSession: SessionState = {
-  tabs: [{ id: '1', path: 'weekly-notes.md', dirty: false }],
+  tabs: [{ id: '1', path: queryNote ?? 'weekly-notes.md', dirty: false }],
   activeId: '1',
 }
 
 export default function App() {
-  const [theme] = useState<Theme>('dark')
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
+  const [files, setFiles] = useState<string[]>(Object.keys(NOTES))
   const [session, dispatch] = useReducer(sessionReducer, initialSession)
   const [editing, setEditing] = useState(false)
   const activeTab = session.tabs.find((tab) => tab.id === session.activeId)
-  const doc = useDocument(activeTab?.path ?? '', sampleIo)
-  const openMode: OpenMode = 'window' // becomes a persisted setting in Task 5
+  const doc = useDocument(activeTab?.path ?? '', io)
+
+  useEffect(() => {
+    void getSettings()
+      .then(setSettings)
+      .catch(() => {})
+    void invoke<string | null>('get_launch_note')
+      .then((note) => {
+        if (note) dispatch({ type: 'open', id: note, path: note })
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (activeTab && activeTab.dirty !== doc.dirty) {
@@ -58,8 +96,79 @@ export default function App() {
     if (doc.exit()) setEditing(false)
   }
 
+  const openNote = (path: string) => {
+    const intent = openIntent(settings.open_mode, path)
+    if (intent.kind === 'window') {
+      void invoke('open_note_window_cmd', { path }).catch(() => {
+        dispatch({ type: 'open', id: path, path })
+      })
+    } else {
+      dispatch({ type: 'open', id: path, path })
+    }
+  }
+
+  const openFolder = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const folder = await open({ directory: true })
+      if (typeof folder !== 'string') return
+      const listed = await invoke<string[]>('list_markdown_files', { folder })
+      setFiles(listed.length ? listed : Object.keys(NOTES))
+      setSettings(await updateSettings({ last_folder: folder }))
+    } catch {
+      // browser preview: nothing to do
+    }
+  }
+
+  const openFile = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const picked = await open({
+        multiple: false,
+        filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+      })
+      if (typeof picked === 'string') openNote(picked)
+    } catch {
+      // browser preview: nothing to do
+    }
+  }
+
+  const toggleTheme = async () => {
+    const theme = settings.theme === 'dark' ? 'light' : 'dark'
+    try {
+      setSettings(await updateSettings({ theme }))
+    } catch {
+      setSettings({ ...settings, theme })
+    }
+  }
+
+  const toggleLibrary = async () => {
+    const view = settings.view === 'library' ? 'focus' : 'library'
+    try {
+      setSettings(await updateSettings({ view }))
+    } catch {
+      setSettings({ ...settings, view })
+    }
+  }
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') {
+        event.preventDefault()
+        void openFile()
+        return
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        const find = (window as unknown as { find?: (text: string) => boolean }).find
+        find?.call(window, prompt('Find in note:') ?? '')
+        return
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
+        event.preventDefault()
+        void toggleLibrary()
+        return
+      }
       if (!editing) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
@@ -74,13 +183,20 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   })
 
-  const openNote = (path: string) => {
-    const intent = openIntent(openMode, path)
-    // TODO(Task 8 backend): window intent opens a WebviewWindow via Rust.
-    // Until the Rust side lands, both intents open a tab in this window.
-    void intent
-    dispatch({ type: 'open', id: String(Date.now()), path })
-  }
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void import('@tauri-apps/api/event')
+      .then(({ listen }) =>
+        listen<{ paths?: string[] }>('tauri://drag-drop', (event) => {
+          const path = event.payload.paths?.[0]
+          if (path && /\.markdown?$/i.test(path)) openNote(path)
+        }).then((fn) => {
+          unlisten = fn
+        }),
+      )
+      .catch(() => {})
+    return () => unlisten?.()
+  })
 
   const closeTab = (id: string) => {
     if (doc.dirty && id === activeTab?.id && !window.confirm('Discard unsaved changes?')) {
@@ -90,20 +206,31 @@ export default function App() {
   }
 
   return (
-    <div className={`theme-${theme}`} style={{ display: 'flex' }}>
-      <LibrarySidebar
-        files={Object.keys(NOTES)}
-        selected={activeTab?.path ?? null}
-        onSelect={(path) => {
-          const existing = session.tabs.find((tab) => tab.path === path)
-          if (existing) dispatch({ type: 'select', id: existing.id })
-          else openNote(path)
-        }}
-        onOpenFolder={() => {
-          /* wired to the Rust folder picker in a later task */
-        }}
-      />
+    <div className={`theme-${settings.theme}`} style={{ display: 'flex' }}>
+      {settings.view === 'library' && (
+        <LibrarySidebar
+          files={files}
+          selected={activeTab?.path ?? null}
+          onSelect={(path) => {
+            const existing = session.tabs.find((tab) => tab.path === path)
+            if (existing) dispatch({ type: 'select', id: existing.id })
+            else openNote(path)
+          }}
+          onOpenFolder={() => void openFolder()}
+        />
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="snug-toolbar">
+          <button className="snug-tool-button" onClick={() => void toggleLibrary()}>
+            ▤ Library
+          </button>
+          <button className="snug-tool-button" onClick={() => void toggleTheme()}>
+            {settings.theme === 'dark' ? '☀ Light' : '☾ Dark'}
+          </button>
+          <button className="snug-tool-button" onClick={() => void openFile()}>
+            ⌕ Open
+          </button>
+        </div>
         <div className="snug-tabbar">
           {session.tabs.map((tab) => (
             <button
@@ -128,7 +255,7 @@ export default function App() {
           <button
             className="snug-new-tab"
             onClick={() => openNote('ideas.md')}
-            title="Open in new tab"
+            title="Open in new tab (when tab mode is on)"
           >
             + New tab
           </button>
@@ -149,9 +276,9 @@ export default function App() {
         ) : (
           <Reader
             source={doc.source}
-            baseDir=""
-            theme={theme}
-            fontSize={18}
+            baseDir={activeTab ? dirname(activeTab.path) : ''}
+            theme={settings.theme}
+            fontSize={settings.font_size}
             onEdit={() => setEditing(true)}
           />
         )}

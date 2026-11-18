@@ -2,6 +2,6 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Snug default capability",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "windows": ["main", "note-*"],
+  "permissions": ["core:default", "dialog:default", "dialog:allow-open"]
 }
