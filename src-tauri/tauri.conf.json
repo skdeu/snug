@@ -1,0 +1,28 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Snug",
+  "version": "0.1.0",
+  "identifier": "com.snug.reader",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Snug",
+        "width": 1000,
+        "height": 720,
+        "backgroundColor": "#151922"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http: https: data:; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true
+  }
+}
