@@ -1,0 +1,74 @@
+.snug-sidebar {
+  width: 240px;
+  flex: none;
+  border-right: 1px solid rgba(127, 127, 160, 0.25);
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+.snug-open-folder {
+  background: transparent;
+  border: 1px solid rgba(127, 127, 160, 0.4);
+  color: inherit;
+  border-radius: 6px;
+  padding: 7px 10px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.snug-search {
+  background: rgba(127, 127, 160, 0.12);
+  border: 1px solid rgba(127, 127, 160, 0.25);
+  color: inherit;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.85em;
+}
+
+.snug-file-label {
+  font-size: 0.7em;
+  letter-spacing: 0.12em;
+  opacity: 0.55;
+  text-transform: uppercase;
+  padding: 4px 6px;
+}
+
+.snug-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.snug-file-list button {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.snug-file-list button:hover {
+  background: rgba(127, 127, 160, 0.14);
+}
+
+.snug-file-list button.selected {
+  background: rgba(111, 107, 224, 0.28);
+  color: #b9c0ff;
+}

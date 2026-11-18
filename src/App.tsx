@@ -1,22 +1,40 @@
 import { useState } from 'react'
 import Reader from './components/Reader'
+import LibrarySidebar from './components/LibrarySidebar'
 import type { Theme } from './lib/theme'
 
-const SAMPLE = `# Welcome to Snug
+const NOTES: Record<string, string> = {
+  'weekly-notes.md': `# Weekly reading notes
 
-A **cozy home** for your notes. This is how your Markdown looks when Snug renders it.
+The whole point of a quiet reading space is that the text gets out of the way and lets you think.
 
-## What you get
+## What worked well
 
-- A calm, dark reading view by default
-- Clean headings, tables and code blocks
-- An edit mode when you need to change something
+- Clean headings and generous spacing
+- Code blocks that stay readable
+- No clutter competing for attention
 
 > Presentation is the product.
-`
+`,
+  'ideas.md': '# Ideas\n\nA place for half-formed thoughts.\n',
+  'reading-list.md': '# Reading list\n\n- [ ] The Art of Reading\n- [ ] Deep Work\n',
+}
 
 export default function App() {
   const [theme] = useState<Theme>('dark')
+  const [selected, setSelected] = useState<string>('weekly-notes.md')
 
-  return <Reader source={SAMPLE} baseDir="" theme={theme} fontSize={18} />
+  return (
+    <div className={`theme-${theme}`} style={{ display: 'flex' }}>
+      <LibrarySidebar
+        files={Object.keys(NOTES)}
+        selected={selected}
+        onSelect={setSelected}
+        onOpenFolder={() => {
+          /* wired to the Rust folder picker in a later task */
+        }}
+      />
+      <Reader source={NOTES[selected] ?? ''} baseDir="" theme={theme} fontSize={18} />
+    </div>
+  )
 }
