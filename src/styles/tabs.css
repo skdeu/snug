@@ -21,6 +21,9 @@
   font: inherit;
   font-size: 0.8em;
   white-space: nowrap;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .snug-tab.active {

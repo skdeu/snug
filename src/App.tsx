@@ -63,8 +63,14 @@ function dirname(path: string): string {
 }
 
 const initialSession: SessionState = {
-  tabs: [{ id: '1', path: queryNote ?? 'weekly-notes.md', dirty: false }],
-  activeId: '1',
+  tabs: [
+    {
+      id: queryNote ?? '1',
+      path: queryNote ?? 'weekly-notes.md',
+      dirty: false,
+    },
+  ],
+  activeId: queryNote ?? '1',
 }
 
 export default function App() {

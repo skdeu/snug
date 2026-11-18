@@ -25,6 +25,16 @@ describe('session', () => {
     expect(sessionReducer(state, { type: 'close', id: '1' })).toBe(state)
   })
 
+  it('open_same_id_selects_without_duplicate', () => {
+    const state: SessionState = {
+      tabs: [{ id: 'a.md', path: 'a.md', dirty: false }],
+      activeId: 'a.md',
+    }
+    const next = sessionReducer(state, { type: 'open', id: 'a.md', path: 'a.md' })
+    expect(next.tabs).toHaveLength(1)
+    expect(next.activeId).toBe('a.md')
+  })
+
   it('open_adds_tab_and_marks_it_active', () => {
     const state: SessionState = { tabs: [], activeId: '' }
     const next = sessionReducer(state, { type: 'open', id: '2', path: 'b.md' })

@@ -44,6 +44,10 @@
   font-size: 2em;
 }
 
+.snug-reader h1:first-child {
+  margin-top: 0.3em;
+}
+
 .snug-reader h2 {
   font-size: 1.5em;
 }

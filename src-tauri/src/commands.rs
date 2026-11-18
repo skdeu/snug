@@ -9,7 +9,9 @@ pub fn read_markdown(path: String) -> Result<String, String> {
         return Err(format!("File not found: {path}"));
     }
     let bytes = fs::read(file).map_err(|error| format!("Could not read file: {error}"))?;
-    String::from_utf8(bytes).map_err(|error| format!("File is not valid UTF-8: {error}"))
+    String::from_utf8(bytes)
+        .map(|text| text.trim_start_matches('\u{FEFF}').to_string())
+        .map_err(|error| format!("File is not valid UTF-8: {error}"))
 }
 
 #[tauri::command]
@@ -119,6 +121,18 @@ mod tests {
         fs::write(&path, [0xFF, 0xFE]).unwrap();
         let err = read_markdown(path.to_string_lossy().into_owned()).unwrap_err();
         assert!(err.contains("UTF-8"), "unexpected error: {err}");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn read_markdown_strips_utf8_bom() {
+        let dir = temp_dir("bom");
+        let path = dir.join("bom.md");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(b"# heading");
+        fs::write(&path, bytes).unwrap();
+        let text = read_markdown(path.to_string_lossy().into_owned()).unwrap();
+        assert_eq!(text, "# heading");
         let _ = fs::remove_dir_all(dir);
     }
 
