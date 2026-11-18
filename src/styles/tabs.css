@@ -1,0 +1,52 @@
+.snug-tabbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px 0;
+  border-bottom: 1px solid rgba(127, 127, 160, 0.25);
+  overflow-x: auto;
+}
+
+.snug-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(127, 127, 160, 0.1);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  color: inherit;
+  border-radius: 6px 6px 0 0;
+  padding: 7px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.snug-tab.active {
+  background: rgba(111, 107, 224, 0.24);
+  border-color: rgba(127, 127, 160, 0.3);
+}
+
+.snug-tab-close {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: 1em;
+  line-height: 1;
+  padding: 0;
+}
+
+.snug-new-tab {
+  margin-left: 4px;
+  background: transparent;
+  border: 1px solid rgba(127, 127, 160, 0.35);
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 9px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8em;
+}
