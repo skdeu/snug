@@ -10,11 +10,8 @@ import {
   updateSettings,
   type AppSettings,
 } from './lib/settings'
-import {
-  openIntent,
-  sessionReducer,
-  type SessionState,
-} from './lib/session'
+import { openIntent, sessionReducer, type SessionState } from './lib/session'
+import { resolveNotePath } from './lib/paths'
 import './styles/tabs.css'
 
 const NOTES: Record<string, string> = {
@@ -34,33 +31,34 @@ The whole point of a quiet reading space is that the text gets out of the way an
   'reading-list.md': '# Reading list\n\n- [ ] The Art of Reading\n- [ ] Deep Work\n',
 }
 
-// Use real files when running in Tauri; keep sample notes for browser preview.
+const IN_TAURI =
+  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+
+// Inside the installed app, backend errors must surface instead of being
+// replaced by fake sample content. Outside Tauri, keep the browser preview.
 const io: DocumentIo = {
   read: async (path) => {
-    try {
-      return await tauriDocumentIo.read(path)
-    } catch {
-      return NOTES[path] ?? `# ${path}\n\n(Preview only — install Snug to open real files.)`
-    }
+    if (IN_TAURI) return tauriDocumentIo.read(path)
+    return NOTES[path] ?? `# ${path}\n\n(Preview only — install Snug to open real files.)`
   },
   write: async (path, contents) => {
-    try {
+    if (IN_TAURI) {
       await tauriDocumentIo.write(path, contents)
-    } catch {
-      NOTES[path] = contents
+      return
     }
+    NOTES[path] = contents
   },
+}
+
+function dirname(path: string): string {
+  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return index >= 0 ? path.slice(0, index) : ''
 }
 
 const queryNote =
   typeof window === 'undefined'
     ? null
     : new URLSearchParams(window.location.search).get('note')
-
-function dirname(path: string): string {
-  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  return index >= 0 ? path.slice(0, index) : ''
-}
 
 const initialSession: SessionState = {
   tabs: [
@@ -78,16 +76,46 @@ export default function App() {
   const [files, setFiles] = useState<string[]>(Object.keys(NOTES))
   const [session, dispatch] = useReducer(sessionReducer, initialSession)
   const [editing, setEditing] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const activeTab = session.tabs.find((tab) => tab.id === session.activeId)
   const doc = useDocument(activeTab?.path ?? '', io)
 
+  const allowFolder = async (folder: string) => {
+    if (!folder) return
+    try {
+      await invoke('allow_asset_folder', { path: folder })
+    } catch {
+      // images may not load; reading still works
+    }
+  }
+
+  useEffect(() => {
+    void import('@tauri-apps/api/window')
+      .then(({ getCurrentWindow }) => getCurrentWindow().maximize())
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     void getSettings()
-      .then(setSettings)
+      .then(async (loaded) => {
+        setSettings(loaded)
+        if (loaded.last_folder) {
+          try {
+            const listed = await invoke<string[]>('list_markdown_files', {
+              folder: loaded.last_folder,
+            })
+            if (listed.length) setFiles(listed)
+          } catch {
+            // keep sample list
+          }
+        }
+      })
       .catch(() => {})
     void invoke<string | null>('get_launch_note')
-      .then((note) => {
-        if (note) dispatch({ type: 'open', id: note, path: note })
+      .then(async (note) => {
+        if (!note) return
+        await allowFolder(dirname(note))
+        dispatch({ type: 'open', id: note, path: note })
       })
       .catch(() => {})
   }, [])
@@ -98,11 +126,24 @@ export default function App() {
     }
   }, [doc.dirty, activeTab])
 
+  const canLeave = () =>
+    !doc.dirty || window.confirm('You have unsaved changes. Discard them?')
+
   const finishEdit = () => {
     if (doc.exit()) setEditing(false)
   }
 
-  const openNote = (path: string) => {
+  const saveNow = async () => {
+    setSaveError(null)
+    try {
+      await doc.save()
+    } catch (reason) {
+      setSaveError(reason instanceof Error ? reason.message : String(reason))
+    }
+  }
+
+  const openNote = async (path: string) => {
+    await allowFolder(dirname(path))
     const intent = openIntent(settings.open_mode, path)
     if (intent.kind === 'window') {
       void invoke('open_note_window_cmd', { path }).catch(() => {
@@ -113,16 +154,28 @@ export default function App() {
     }
   }
 
+  const switchToPath = async (path: string) => {
+    if (!canLeave()) return
+    const existing = session.tabs.find((tab) => tab.path === path)
+    if (existing) dispatch({ type: 'select', id: existing.id })
+    else await openNote(path)
+  }
+
+  const switchToTab = (id: string) => {
+    if (id === activeTab?.id || canLeave()) dispatch({ type: 'select', id })
+  }
+
   const openFolder = async () => {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog')
       const folder = await open({ directory: true })
       if (typeof folder !== 'string') return
+      await allowFolder(folder)
       const listed = await invoke<string[]>('list_markdown_files', { folder })
       setFiles(listed.length ? listed : Object.keys(NOTES))
       setSettings(await updateSettings({ last_folder: folder }))
     } catch {
-      // browser preview: nothing to do
+      // browser preview
     }
   }
 
@@ -133,9 +186,9 @@ export default function App() {
         multiple: false,
         filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
       })
-      if (typeof picked === 'string') openNote(picked)
+      if (typeof picked === 'string') await openNote(picked)
     } catch {
-      // browser preview: nothing to do
+      // browser preview
     }
   }
 
@@ -178,7 +231,7 @@ export default function App() {
       if (!editing) return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault()
-        void doc.save()
+        void saveNow()
       }
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -190,12 +243,40 @@ export default function App() {
   })
 
   useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!doc.dirty) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  })
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void import('@tauri-apps/api/window')
+      .then(({ getCurrentWindow }) =>
+        getCurrentWindow()
+          .onCloseRequested((event: { preventDefault: () => void }) => {
+            if (doc.dirty && !window.confirm('You have unsaved changes. Close anyway?')) {
+              event.preventDefault()
+            }
+          })
+          .then((fn) => {
+            unlisten = fn
+          }),
+      )
+      .catch(() => {})
+    return () => unlisten?.()
+  })
+
+  useEffect(() => {
     let unlisten: (() => void) | undefined
     void import('@tauri-apps/api/event')
       .then(({ listen }) =>
         listen<{ paths?: string[] }>('tauri://drag-drop', (event) => {
           const path = event.payload.paths?.[0]
-          if (path && /\.markdown?$/i.test(path)) openNote(path)
+          if (path && /\.markdown?$/i.test(path)) void openNote(path)
         }).then((fn) => {
           unlisten = fn
         }),
@@ -208,7 +289,7 @@ export default function App() {
     if (doc.dirty && id === activeTab?.id && !window.confirm('Discard unsaved changes?')) {
       return
     }
-    dispatch({ type: 'close', id })
+    dispatch({ type: 'close', id, force: true })
   }
 
   return (
@@ -217,11 +298,9 @@ export default function App() {
         <LibrarySidebar
           files={files}
           selected={activeTab?.path ?? null}
-          onSelect={(path) => {
-            const existing = session.tabs.find((tab) => tab.path === path)
-            if (existing) dispatch({ type: 'select', id: existing.id })
-            else openNote(path)
-          }}
+          onSelect={(path) =>
+            void switchToPath(resolveNotePath(path, settings.last_folder))
+          }
           onOpenFolder={() => void openFolder()}
         />
       )}
@@ -236,13 +315,18 @@ export default function App() {
           <button className="snug-tool-button" onClick={() => void openFile()}>
             ⌕ Open
           </button>
+          {editing && (
+            <button className="snug-tool-button" onClick={() => void saveNow()}>
+              Save
+            </button>
+          )}
         </div>
         <div className="snug-tabbar">
           {session.tabs.map((tab) => (
             <button
               key={tab.id}
               className={`snug-tab ${tab.id === session.activeId ? 'active' : ''}`}
-              onClick={() => dispatch({ type: 'select', id: tab.id })}
+              onClick={() => switchToTab(tab.id)}
             >
               {tab.path}
               <span
@@ -260,23 +344,28 @@ export default function App() {
           ))}
           <button
             className="snug-new-tab"
-            onClick={() => openNote('ideas.md')}
+            onClick={() => void openNote('ideas.md')}
             title="Open in new tab (when tab mode is on)"
           >
             + New tab
           </button>
         </div>
+        {doc.error && <div className="snug-error">{doc.error}</div>}
         {editing ? (
           <>
             <Editor
               key={activeTab?.id}
               value={doc.source}
               onChange={doc.setSource}
-              onSave={() => void doc.save()}
+              onSave={() => void saveNow()}
               onExit={finishEdit}
             />
             <div className="snug-editor-status">
-              {doc.dirty ? '● Unsaved' : 'Saved'} · Ctrl+S to save · Esc to exit
+              <button className="snug-tool-button" onClick={() => void saveNow()}>
+                Save
+              </button>
+              <span>{doc.dirty ? '● Unsaved' : 'Saved'} · Ctrl+S to save · Esc to exit</span>
+              {saveError && <span className="snug-error">{saveError}</span>}
             </div>
           </>
         ) : (

@@ -35,6 +35,17 @@ describe('session', () => {
     expect(next.activeId).toBe('a.md')
   })
 
+  it('close_force_removes_dirty_tab_after_confirm', () => {
+    const state: SessionState = {
+      tabs: [{ id: '1', path: 'a.md', dirty: true }],
+      activeId: '1',
+    }
+    expect(sessionReducer(state, { type: 'close', id: '1' })).toBe(state)
+    const next = sessionReducer(state, { type: 'close', id: '1', force: true })
+    expect(next.tabs).toHaveLength(0)
+    expect(next.activeId).toBe('')
+  })
+
   it('open_adds_tab_and_marks_it_active', () => {
     const state: SessionState = { tabs: [], activeId: '' }
     const next = sessionReducer(state, { type: 'open', id: '2', path: 'b.md' })

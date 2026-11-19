@@ -43,7 +43,15 @@ export function renderMarkdown(source: string, options: RenderOptions): string {
     const reference = String(token.attrGet('src') ?? '')
     const isExternal = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(reference) || reference.startsWith('//')
     if (!isExternal && reference) {
-      token.attrSet('src', options.resolveAsset(reference))
+      try {
+        token.attrSet('src', options.resolveAsset(reference))
+      } catch {
+        // A hostile or malformed path must never blank the reading view.
+        token.attrSet(
+          'src',
+          'data:image/gif;base64,R0lGODlhAQABAAAAACw=',
+        )
+      }
     }
     return defaultImage
       ? defaultImage(tokens, idx, envOptions, env, self)

@@ -31,6 +31,19 @@ describe('renderMarkdown', () => {
     expect(html).not.toContain('href="javascript:')
   })
 
+  it('hostile_image_reference_does_not_throw', () => {
+    const throwingOptions = {
+      baseDir: 'C:/notes',
+      resolveAsset: (reference: string) => {
+        if (reference.includes('..')) throw new Error('escape blocked')
+        return 'asset://test/' + reference
+      },
+    }
+    const html = renderMarkdown('![x](../../secret.png)', throwingOptions)
+    expect(html).toContain('<img')
+    expect(html).not.toContain('secret.png')
+  })
+
   it('highlights_fenced_code', () => {
     const html = renderMarkdown('```ts\nconst x: number = 1\n```', options)
     expect(html).toContain('hljs')

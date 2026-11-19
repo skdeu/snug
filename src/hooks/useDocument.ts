@@ -6,7 +6,7 @@ export interface DocumentIo {
   write: (path: string, contents: string) => Promise<void>
 }
 
-/** Filesystem-backed IO. Wired to the Rust commands added in Task 2. */
+/** Filesystem-backed IO, wired to the Rust commands. */
 export const tauriDocumentIo: DocumentIo = {
   read: (path) => invoke<string>('read_markdown', { path }),
   write: (path, contents) => invoke('write_markdown', { path, contents }),
@@ -19,17 +19,19 @@ export interface UseDocument {
   save: () => Promise<void>
   exit: () => boolean
   loading: boolean
+  error: string | null
 }
 
 export function useDocument(initialPath: string, io: DocumentIo = tauriDocumentIo): UseDocument {
-  const [path] = useState(initialPath)
   const [source, setSourceState] = useState('')
   const [savedSource, setSavedSource] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setError(null)
     io.read(initialPath)
       .then((text) => {
         if (cancelled) return
@@ -37,8 +39,9 @@ export function useDocument(initialPath: string, io: DocumentIo = tauriDocumentI
         setSavedSource(text)
         setLoading(false)
       })
-      .catch(() => {
+      .catch((reason: unknown) => {
         if (cancelled) return
+        setError(reason instanceof Error ? reason.message : String(reason))
         setSourceState('')
         setSavedSource('')
         setLoading(false)
@@ -51,14 +54,27 @@ export function useDocument(initialPath: string, io: DocumentIo = tauriDocumentI
   const setSource = useCallback((next: string) => setSourceState(next), [])
 
   const save = useCallback(async () => {
-    await io.write(path, source)
+    await io.write(initialPath, source)
     setSavedSource(source)
-  }, [io, path, source])
+    setError(null)
+  }, [io, initialPath, source])
 
   const exit = useCallback(() => {
     if (source === savedSource) return true
-    return window.confirm('You have unsaved changes. Discard them?')
+    if (window.confirm('You have unsaved changes. Discard them?')) {
+      setSourceState(savedSource)
+      return true
+    }
+    return false
   }, [source, savedSource])
 
-  return { source, setSource, dirty: source !== savedSource, save, exit, loading }
+  return {
+    source,
+    setSource,
+    dirty: source !== savedSource,
+    save,
+    exit,
+    loading,
+    error,
+  }
 }

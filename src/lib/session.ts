@@ -14,7 +14,7 @@ export interface SessionState {
 export type SessionAction =
   | { type: 'open'; id: string; path: string }
   | { type: 'select'; id: string }
-  | { type: 'close'; id: string }
+  | { type: 'close'; id: string; force?: boolean }
   | { type: 'markDirty'; id: string; dirty: boolean }
 
 export interface OpenIntent {
@@ -47,7 +47,7 @@ export function sessionReducer(
         : state
     case 'close': {
       const tab = state.tabs.find((item) => item.id === action.id)
-      if (!tab || tab.dirty) return state
+      if (!tab || (tab.dirty && !action.force)) return state
       const tabs = state.tabs.filter((item) => item.id !== action.id)
       const activeId =
         state.activeId === action.id ? (tabs[0]?.id ?? '') : state.activeId

@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+use tauri::Manager;
+
 #[tauri::command]
 pub fn read_markdown(path: String) -> Result<String, String> {
     let file = Path::new(&path);
@@ -80,6 +82,14 @@ pub fn resolve_local_asset(note_path: String, reference: String) -> Result<Strin
     let note = PathBuf::from(&note_path);
     let parent = note.parent().unwrap_or_else(|| Path::new("."));
     Ok(parent.join(reference_path).to_string_lossy().into_owned())
+}
+
+/// Grant the WebView read access to a note's own folder only.
+#[tauri::command]
+pub fn allow_asset_folder(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    app.asset_protocol_scope()
+        .allow_directory(PathBuf::from(path), true)
+        .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

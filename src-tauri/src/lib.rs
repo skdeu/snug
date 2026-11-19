@@ -24,6 +24,7 @@ pub fn run() {
             commands::write_markdown,
             commands::list_markdown_files,
             commands::resolve_local_asset,
+            commands::allow_asset_folder,
             settings::load_settings,
             settings::save_settings,
             windows::get_launch_note,

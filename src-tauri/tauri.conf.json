@@ -13,8 +13,9 @@
     "windows": [
       {
         "title": "Snug",
-        "width": 1000,
-        "height": 720,
+        "width": 1280,
+        "height": 820,
+        "maximized": true,
         "backgroundColor": "#151922"
       }
     ],
@@ -22,7 +23,7 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http: https: data:; object-src 'none'; base-uri 'self'",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$HOME/**/*", "$DOCUMENT/**/*", "E:/**/*"]
+        "scope": []
       }
     }
   },

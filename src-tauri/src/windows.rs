@@ -52,6 +52,7 @@ pub fn open_note_window(app: AppHandle, path: String) -> Result<(), String> {
 
     WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
         .title(format!("Snug — {name}"))
+        .maximized(true)
         .build()
         .map_err(|error| error.to_string())?;
     Ok(())

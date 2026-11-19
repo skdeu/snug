@@ -23,24 +23,8 @@ export default function Editor({ value, onChange, onSave, onExit }: EditorProps)
       extensions: [
         markdown(),
         history(),
-        keymap.of([
-          {
-            key: 'Mod-s',
-            run: () => {
-              handlers.current.onSave()
-              return true
-            },
-          },
-          {
-            key: 'Escape',
-            run: () => {
-              handlers.current.onExit()
-              return true
-            },
-          },
-          ...defaultKeymap,
-          ...historyKeymap,
-        ]),
+        // Save/Exit are handled once by App's window-level shortcuts.
+        keymap.of([...defaultKeymap, ...historyKeymap]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             handlers.current.onChange(update.state.doc.toString())

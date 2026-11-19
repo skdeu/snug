@@ -21,15 +21,24 @@
 
 .snug-editor {
   flex: 1;
-  min-height: 100vh;
+  min-height: 60vh;
   background: #151922;
   color: #e6e9f0;
 }
 
 .snug-editor-status {
-  padding: 6px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
   font-size: 0.78em;
-  opacity: 0.75;
+  opacity: 0.9;
+}
+
+.snug-error {
+  color: #ff9aa8;
+  padding: 8px 18px;
+  font-size: 0.85em;
 }
 
 .snug-reader h1,
