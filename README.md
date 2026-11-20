@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src-tauri/icons/icon-256.png" width="128" alt="Snug logo">
+</p>
+
 # Snug
 
 A cozy home for your notes. Snug is a small Windows app that opens Markdown (`.md`) files in a clean reading view, with no raw `#` or `**` in the way. When you want to change something, click **Edit**, change it, and save.
