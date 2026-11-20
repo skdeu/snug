@@ -1,6 +1,25 @@
+# Dependencies and build output
 node_modules/
 dist/
+coverage/
 src-tauri/target/
+
+# Local tooling and scratch files
 .superpowers/
-Installed/
 *.log
+
+# A local installed copy of the app, and personal notes kept beside it
+Installed/
+
+# Operating system and editor files
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local environment files
+.env
+.env.*
+*.local

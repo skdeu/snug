@@ -1,0 +1,6 @@
+# Text files are stored with LF in the repository, and checkouts follow the same rule.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary
