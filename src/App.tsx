@@ -3,7 +3,15 @@ import { invoke } from '@tauri-apps/api/core'
 import LibrarySidebar from './components/LibrarySidebar'
 import NotePane from './components/NotePane'
 import TabStrip from './components/TabStrip'
-import { tauriDocumentIo, type DocumentIo, type LoadedText } from './hooks/useDocument'
+import {
+  discardDraft,
+  noDraftIo,
+  tauriDocumentIo,
+  tauriDraftIo,
+  type DocumentIo,
+  type DraftIo,
+  type LoadedText,
+} from './hooks/useDocument'
 import { DEFAULT_SETTINGS, getSettings, updateSettings, type AppSettings } from './lib/settings'
 import { sessionReducer, type SavedWindow, type SessionState } from './lib/session'
 import { basename, dirnameOf, isMarkdownFile, resolveNotePath } from './lib/paths'
@@ -44,6 +52,8 @@ const io: DocumentIo = {
     return 0
   },
 }
+
+const drafts: DraftIo = IS_TAURI ? tauriDraftIo : noDraftIo
 
 const queryNote =
   typeof window === 'undefined'
@@ -86,6 +96,8 @@ export default function App() {
   // Window-level listeners are registered once, so they read the latest values through refs.
   const dirtyRef = useRef(anyDirty)
   dirtyRef.current = anyDirty
+  const tabsRef = useRef(session.tabs)
+  tabsRef.current = session.tabs
   const closingRef = useRef(false)
 
   const allowFolder = async (folder: string) => {
@@ -199,6 +211,16 @@ export default function App() {
             event.preventDefault()
             return
           }
+          // A confirmed discard must not come back after a relaunch.
+          try {
+            for (const tab of tabsRef.current) {
+              if (tab.dirty) await discardDraft(tab.path, drafts)
+            }
+          } catch (reason) {
+            setNotice(`Could not discard the unsaved text: ${errorText(reason)}. The window stays open.`)
+            event.preventDefault()
+            return
+          }
           closingRef.current = true
         }),
       )
@@ -296,6 +318,14 @@ export default function App() {
       !(await askYesNo(`"${basename(tab.path)}" has unsaved changes. Close it and discard them?`))
     ) {
       return
+    }
+    if (tab.dirty) {
+      try {
+        await discardDraft(tab.path, drafts)
+      } catch (reason) {
+        setNotice(`Could not discard the unsaved text: ${errorText(reason)}. The tab stays open.`)
+        return
+      }
     }
     // Closing the last tab closes the window, as in a browser.
     if (session.tabs.length === 1 && IS_TAURI) {
@@ -447,6 +477,7 @@ export default function App() {
             theme={settings.theme}
             fontSize={settings.font_size}
             io={io}
+            drafts={drafts}
             onDirtyChange={(dirty) => dispatch({ type: 'markDirty', id: tab.id, dirty })}
             onOpenNote={openPath}
           />

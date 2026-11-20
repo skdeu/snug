@@ -1,4 +1,5 @@
 mod commands;
+mod drafts;
 mod session;
 mod settings;
 mod windows;
@@ -44,7 +45,20 @@ pub fn run() {
             session::save_session,
             session::restore_session,
             session::take_pending_session,
+            drafts::write_draft,
+            drafts::read_draft,
+            drafts::delete_draft,
+            drafts::keep_draft_aside,
         ])
+        .setup(|app| {
+            session::settle_startup(app.handle());
+            if let Some(main) = app.get_webview_window("main") {
+                windows::place_main(app.handle(), &main, session::main_plan());
+                // Always shown, even if placement failed: the window starts hidden.
+                let _ = main.show();
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running Snug");
 }

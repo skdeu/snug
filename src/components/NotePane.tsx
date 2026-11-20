@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import Editor from './Editor'
 import Reader from './Reader'
-import { isChangedOnDisk, useDocument, type DocumentIo } from '../hooks/useDocument'
+import { isChangedOnDisk, useDocument, type DocumentIo, type DraftIo } from '../hooks/useDocument'
 import { askYesNo } from '../lib/dialogs'
 import { dirnameOf, linkedNotePath } from '../lib/paths'
 import type { Theme } from '../lib/theme'
@@ -13,6 +13,7 @@ interface NotePaneProps {
   theme: Theme
   fontSize: number
   io: DocumentIo
+  drafts: DraftIo
   onDirtyChange: (dirty: boolean) => void
   /** Open a linked note as a tab in this window. */
   onOpenNote: (path: string) => void
@@ -32,10 +33,11 @@ export default function NotePane({
   theme,
   fontSize,
   io,
+  drafts,
   onDirtyChange,
   onOpenNote,
 }: NotePaneProps) {
-  const doc = useDocument(path, io)
+  const doc = useDocument(path, io, drafts)
   const [editing, setEditing] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -112,6 +114,7 @@ export default function NotePane({
   return (
     <div className="snug-pane" style={active ? undefined : { display: 'none' }}>
       {doc.error && <div className="snug-error">{doc.error}</div>}
+      {doc.notice && <div className="snug-error">{doc.notice}</div>}
       {message && <div className="snug-error">{message}</div>}
       {editing && !doc.loading ? (
         <>

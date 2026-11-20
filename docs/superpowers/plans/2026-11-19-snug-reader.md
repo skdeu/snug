@@ -8,11 +8,11 @@
 
 **Tech Stack:** Rust (stable) + Tauri 2, TypeScript + React 19 + Vite 6, markdown-it 14, DOMPurify 3, highlight.js 11, CodeMirror 6, Vitest 3, NSIS installer.
 
-**Spec:** `the repository\docs\superpowers\specs\2026-11-19-md-reader-design.md`
+**Spec:** `docs\superpowers\specs\2026-11-19-md-reader-design.md`
 
 ## Global Constraints
 
-- App name is **Snug**; all project files live under `the repository`. Logo source is `the repository\assets\snug-logo.svg`.
+- App name is **Snug**; all project files live under `the repository root`. Logo source is `assets\snug-logo.svg`.
 - Windows 10/11 only. WebView2 runtime is already present on the target machine (verified: runtime 157) — do **not** bundle or download it.
 - Dark theme is the launch default; light theme and library view are selectable and persisted.
 - Fully offline at runtime: no accounts, no cloud, no telemetry, no remote calls.
@@ -37,14 +37,14 @@ These are the inputs and failure modes most likely to hurt a reader that the tas
 ### Task 1: Scaffold the Tauri + React project and a blank Snug window
 
 **Files:**
-- Create: `the repository\package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `src/main.tsx`, `src/App.tsx`, `src/styles/base.css`, `src-tauri/Cargo.toml`, `src-tauri/build.rs`, `src-tauri/tauri.conf.json`, `src-tauri/src/main.rs`, `src-tauri/src/lib.rs`, `src-tauri/capabilities/default.json`, `.gitignore`
+- Create: `package.json`, `tsconfig.json`, `vite.config.ts`, `index.html`, `src/main.tsx`, `src/App.tsx`, `src/styles/base.css`, `src-tauri/Cargo.toml`, `src-tauri/build.rs`, `src-tauri/tauri.conf.json`, `src-tauri/src/main.rs`, `src-tauri/src/lib.rs`, `src-tauri/capabilities/default.json`, `.gitignore`
 
 **Interfaces:**
 - Produces: a runnable dev shell — `npm run tauri dev` opens a window titled `Snug` with a dark background. No app features yet.
 
 - [ ] **Step 1: Initialise the frontend and Rust project**
 
-Run in `the repository`: `npm create vite@latest . -- --template react-ts`, then `npm install`, then `npm install -D @tauri-apps/cli@2` and `npm install @tauri-apps/api@2`. Add `tauri = { version = "2", features = [] }`, `serde`, `serde_json` to `src-tauri/Cargo.toml`. Run `npm run tauri init` with app name `Snug`, window title `Snug`, dev URL `http://localhost:5173`.
+Run in `the repository root`: `npm create vite@latest . -- --template react-ts`, then `npm install`, then `npm install -D @tauri-apps/cli@2` and `npm install @tauri-apps/api@2`. Add `tauri = { version = "2", features = [] }`, `serde`, `serde_json` to `src-tauri/Cargo.toml`. Run `npm run tauri init` with app name `Snug`, window title `Snug`, dev URL `http://localhost:5173`.
 
 - [ ] **Step 2: Set the project identity and dark baseline**
 
@@ -52,7 +52,7 @@ In `src-tauri/tauri.conf.json` set `productName: "Snug"`, `identifier: "com.snug
 
 - [ ] **Step 3: Initialise git and ignore build output**
 
-Run `git init` in `the repository`. Add `.gitignore` covering `node_modules/`, `dist/`, `src-tauri/target/`, `.superpowers/`. Commit: `chore: scaffold Snug Tauri app`.
+Run `git init` in `the repository root`. Add `.gitignore` covering `node_modules/`, `dist/`, `src-tauri/target/`, `.superpowers/`. Commit: `chore: scaffold Snug Tauri app`.
 
 - [ ] **Step 4: Verify the window opens**
 

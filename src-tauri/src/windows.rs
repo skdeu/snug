@@ -83,7 +83,7 @@ pub fn fit_saved(
 
 /// The usable area and scale of the monitor under (`x`, `y`), or of the primary monitor
 /// when that point is no longer on screen (a monitor was unplugged).
-fn work_area_for(app: &AppHandle, x: i32, y: i32) -> Option<(WorkArea, f64)> {
+pub(crate) fn work_area_for(app: &AppHandle, x: i32, y: i32) -> Option<(WorkArea, f64)> {
     let monitor = app
         .monitor_from_point(f64::from(x), f64::from(y))
         .ok()
@@ -178,6 +178,28 @@ fn center_on_primary(app: &AppHandle) -> (f64, f64, f64, f64) {
     }
 }
 
+/// Place the main window from its plan: saved size and position (kept on screen), then
+/// maximize when it was maximized. Every error is ignored.
+pub fn place_main(app: &AppHandle, window: &WebviewWindow, plan: crate::session::MainPlan) {
+    if let Some(bounds) = plan.bounds {
+        if let Some((work, scale)) = work_area_for(app, bounds.x, bounds.y) {
+            let (left, top, width, height) = fit_saved(
+                work,
+                scale,
+                f64::from(bounds.x),
+                f64::from(bounds.y),
+                f64::from(bounds.width),
+                f64::from(bounds.height),
+            );
+            let _ = window.set_size(tauri::LogicalSize::new(width, height));
+            let _ = window.set_position(tauri::LogicalPosition::new(left, top));
+        }
+    }
+    if plan.maximized {
+        let _ = window.maximize();
+    }
+}
+
 /// A fresh window label, unique for this run.
 pub fn next_label() -> String {
     format!("note-{}", WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed))
@@ -199,6 +221,7 @@ pub fn build_window(
     url: &str,
     title: String,
     placement: Placement,
+    maximized: bool,
 ) -> Result<(), String> {
     let builder = WebviewWindowBuilder::new(app, label, WebviewUrl::App(url.into())).title(title);
     let builder = match placement {
@@ -215,6 +238,7 @@ pub fn build_window(
             builder.inner_size(w, h).position(left, top)
         }
     };
+    let builder = if maximized { builder.maximized(true) } else { builder };
     builder.build().map(|_| ()).map_err(|error| error.to_string())
 }
 
@@ -264,13 +288,13 @@ fn urlencode(value: &str) -> String {
 /// Open a new window showing `path`, with its tab near the screen point (`x`, `y`).
 pub fn open_window_at(app: &AppHandle, path: &str, x: i32, y: i32) -> Result<(), String> {
     let url = format!("index.html?note={}", urlencode(path));
-    build_window(app, &next_label(), &url, title_for(path), Placement::Near(x, y))
+    build_window(app, &next_label(), &url, title_for(path), Placement::Near(x, y), false)
 }
 
 /// Ctrl+N: an empty window, centred on screen.
 #[tauri::command]
 pub fn new_window(app: AppHandle) -> Result<(), String> {
-    build_window(&app, &next_label(), "index.html", "Snug".to_string(), Placement::Center)
+    build_window(&app, &next_label(), "index.html", "Snug".to_string(), Placement::Center, false)
 }
 
 /// Called when a tab is released away from its tab strip. If another Snug window is
@@ -414,6 +438,13 @@ mod tests {
 
     fn screen() -> WorkArea {
         WorkArea { left: 0.0, top: 0.0, width: 2880.0, height: 1704.0 }
+    }
+
+    #[test]
+    fn fit_saved_brings_an_off_screen_window_back() {
+        let area = WorkArea { left: 0.0, top: 0.0, width: 1920.0, height: 1040.0 };
+        let (left, top, _, _) = fit_saved(area, 1.0, 5000.0, 4000.0, 900.0, 700.0);
+        assert!(left + 900.0 <= 1920.0 && top + 700.0 <= 1040.0);
     }
 
     #[test]
