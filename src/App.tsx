@@ -319,8 +319,7 @@ export default function App() {
       return
     }
     try {
-      const result = await invoke<string>('drop_tab', { origin: windowLabel, path: tab.path })
-      if (result === 'stay') return
+      await invoke('drop_tab', { origin: windowLabel, path: tab.path })
       if (session.tabs.length === 1) await closeWindow()
       else dispatch({ type: 'close', id, force: true })
     } catch (reason) {

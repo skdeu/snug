@@ -15,7 +15,7 @@ To set as default: right-click any `.md` file → Open with → choose Snug → 
 - **▤ Library** shows the notes folder; **Open folder…** loads another folder of notes.
 - **⌕ Open** picks a single file with the native file dialog.
 - **+ Open note** (or Ctrl+O / Ctrl+T) opens another note as a tab, like a browser.
-- Drag a tab along the strip to reorder it. Drag it off the window to make a new window, or onto another Snug window to move it there.
+- Drag a tab along the strip to reorder it. Drag it away from the tab strip to make a new window, even when you release it inside the same window (as in Chrome), or drop it onto another Snug window to move it there.
 - Ctrl+W closes the current tab (closing the last tab closes the window). Ctrl+Tab and Ctrl+Shift+Tab move between tabs. Middle-click also closes a tab.
 - Opening a `.md` file while Snug is already running adds it as a tab in the open window.
 - Links to other `.md` notes open as tabs. Web links open in your browser. Other links are not followed.

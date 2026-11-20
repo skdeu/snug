@@ -59,7 +59,7 @@ fn with_state<T>(change: impl FnOnce(&mut State) -> T) -> Option<T> {
 }
 
 fn session_path() -> Option<PathBuf> {
-    let base = dirs::config_dir().or_else(dirs::data_dir)?;
+    let base = crate::settings::data_root()?;
     Some(base.join("Snug").join("session.json"))
 }
 

@@ -44,10 +44,17 @@ impl Default for AppSettings {
     }
 }
 
+/// The folder that holds Snug's settings and session. `SNUG_DATA_DIR` moves it, so a test
+/// build can run without touching the settings of the installed app.
+pub fn data_root() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("SNUG_DATA_DIR") {
+        return Some(PathBuf::from(dir));
+    }
+    dirs::config_dir().or_else(dirs::data_dir)
+}
+
 pub fn settings_path() -> Result<PathBuf, String> {
-    let base = dirs::config_dir()
-        .or_else(dirs::data_dir)
-        .ok_or_else(|| "Could not find a settings directory".to_string())?;
+    let base = data_root().ok_or_else(|| "Could not find a settings directory".to_string())?;
     Ok(base.join("Snug").join("settings.json"))
 }
 

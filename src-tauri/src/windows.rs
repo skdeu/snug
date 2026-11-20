@@ -273,10 +273,10 @@ pub fn new_window(app: AppHandle) -> Result<(), String> {
     build_window(&app, &next_label(), "index.html", "Snug".to_string(), Placement::Center)
 }
 
-/// Called when a tab is released on screen. The tab stays where it is when
-/// released inside its own window, moves into another Snug window when released
-/// over it, and otherwise becomes a new window at the pointer.
-/// Returns "stay", "merged" or "created".
+/// Called when a tab is released away from its tab strip. If another Snug window is
+/// under the pointer, the tab moves there. Otherwise it becomes a new window at the
+/// pointer, as in a browser, even when the pointer is still inside its own window.
+/// Returns "merged" or "created".
 // Async on purpose: a synchronous command runs on the UI thread, and creating a webview
 // window from there can deadlock on Windows, leaving the new window blank.
 #[tauri::command]
@@ -286,11 +286,6 @@ pub async fn drop_tab(app: AppHandle, origin: String, path: String) -> Result<St
     let y = cursor.y.round() as i32;
 
     if let Some(top) = native::top_level_at(x, y) {
-        if let Some(own) = app.get_webview_window(&origin) {
-            if window_handle(&own) == Some(top) {
-                return Ok("stay".to_string());
-            }
-        }
         for (label, window) in app.webview_windows() {
             if label == origin || !is_snug_window(&label) {
                 continue;
