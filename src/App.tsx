@@ -1,17 +1,14 @@
-import { useEffect, useReducer, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import Reader from './components/Reader'
-import Editor from './components/Editor'
 import LibrarySidebar from './components/LibrarySidebar'
-import { useDocument, tauriDocumentIo, type DocumentIo } from './hooks/useDocument'
-import {
-  DEFAULT_SETTINGS,
-  getSettings,
-  updateSettings,
-  type AppSettings,
-} from './lib/settings'
-import { openIntent, sessionReducer, type SessionState } from './lib/session'
-import { resolveNotePath } from './lib/paths'
+import NotePane from './components/NotePane'
+import TabStrip from './components/TabStrip'
+import { tauriDocumentIo, type DocumentIo, type LoadedText } from './hooks/useDocument'
+import { DEFAULT_SETTINGS, getSettings, updateSettings, type AppSettings } from './lib/settings'
+import { sessionReducer, type SavedWindow, type SessionState } from './lib/session'
+import { basename, dirnameOf, isMarkdownFile, resolveNotePath } from './lib/paths'
+import { IS_TAURI, listenTo } from './lib/events'
+import { askYesNo } from './lib/dialogs'
 import './styles/tabs.css'
 
 const NOTES: Record<string, string> = {
@@ -31,28 +28,21 @@ The whole point of a quiet reading space is that the text gets out of the way an
   'reading-list.md': '# Reading list\n\n- [ ] The Art of Reading\n- [ ] Deep Work\n',
 }
 
-const IN_TAURI =
-  typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
-
-// Inside the installed app, backend errors must surface instead of being
-// replaced by fake sample content. Outside Tauri, keep the browser preview.
+// Inside the installed app, backend errors must surface instead of being replaced by
+// sample content. Outside Tauri, keep the browser preview working.
 const io: DocumentIo = {
-  read: async (path) => {
-    if (IN_TAURI) return tauriDocumentIo.read(path)
-    return NOTES[path] ?? `# ${path}\n\n(Preview only — install Snug to open real files.)`
-  },
-  write: async (path, contents) => {
-    if (IN_TAURI) {
-      await tauriDocumentIo.write(path, contents)
-      return
+  read: async (path): Promise<LoadedText> => {
+    if (IS_TAURI) return tauriDocumentIo.read(path)
+    return {
+      text: NOTES[path] ?? `# ${path}\n\n(Preview only — install Snug to open real files.)`,
+      modified: 0,
     }
-    NOTES[path] = contents
   },
-}
-
-function dirname(path: string): string {
-  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
-  return index >= 0 ? path.slice(0, index) : ''
+  write: async (path, contents, expectedModified) => {
+    if (IS_TAURI) return tauriDocumentIo.write(path, contents, expectedModified)
+    NOTES[path] = contents
+    return 0
+  },
 }
 
 const queryNote =
@@ -60,109 +50,220 @@ const queryNote =
     ? null
     : new URLSearchParams(window.location.search).get('note')
 
-const initialSession: SessionState = {
-  tabs: [
-    {
-      id: queryNote ?? '1',
-      path: queryNote ?? 'weekly-notes.md',
-      dirty: false,
-    },
-  ],
-  activeId: queryNote ?? '1',
+// A window starts with no note, unless it was opened for one (a torn-off tab).
+// The browser preview starts with a sample note so the design can be seen.
+const initialSession: SessionState = queryNote
+  ? { tabs: [{ id: queryNote, path: queryNote, dirty: false }], activeId: queryNote }
+  : IS_TAURI
+    ? { tabs: [], activeId: '' }
+    : {
+        tabs: [{ id: 'weekly-notes.md', path: 'weekly-notes.md', dirty: false }],
+        activeId: 'weekly-notes.md',
+      }
+
+function errorText(reason: unknown): string {
+  return reason instanceof Error ? reason.message : String(reason)
+}
+
+async function currentWindow() {
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  return getCurrentWindow()
 }
 
 export default function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
-  const [files, setFiles] = useState<string[]>(Object.keys(NOTES))
+  const [files, setFiles] = useState<string[]>(IS_TAURI ? [] : Object.keys(NOTES))
   const [session, dispatch] = useReducer(sessionReducer, initialSession)
-  const [editing, setEditing] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [windowLabel, setWindowLabel] = useState('')
+  const [notice, setNotice] = useState<string | null>(null)
+  const [findOpen, setFindOpen] = useState(false)
+  const [findText, setFindText] = useState('')
+  // Becomes true once this window's tabs are restored. Nothing is saved before that.
+  const [restored, setRestored] = useState(false)
   const activeTab = session.tabs.find((tab) => tab.id === session.activeId)
-  const doc = useDocument(activeTab?.path ?? '', io)
+  const anyDirty = session.tabs.some((tab) => tab.dirty)
+
+  // Window-level listeners are registered once, so they read the latest values through refs.
+  const dirtyRef = useRef(anyDirty)
+  dirtyRef.current = anyDirty
+  const closingRef = useRef(false)
 
   const allowFolder = async (folder: string) => {
-    if (!folder) return
+    if (!folder || !IS_TAURI) return
     try {
       await invoke('allow_asset_folder', { path: folder })
-    } catch {
-      // images may not load; reading still works
-    }
-  }
-
-  useEffect(() => {
-    void import('@tauri-apps/api/window')
-      .then(({ getCurrentWindow }) => getCurrentWindow().maximize())
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    void getSettings()
-      .then(async (loaded) => {
-        setSettings(loaded)
-        if (loaded.last_folder) {
-          try {
-            const listed = await invoke<string[]>('list_markdown_files', {
-              folder: loaded.last_folder,
-            })
-            if (listed.length) setFiles(listed)
-          } catch {
-            // keep sample list
-          }
-        }
-      })
-      .catch(() => {})
-    void invoke<string | null>('get_launch_note')
-      .then(async (note) => {
-        if (!note) return
-        await allowFolder(dirname(note))
-        dispatch({ type: 'open', id: note, path: note })
-      })
-      .catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    if (activeTab && activeTab.dirty !== doc.dirty) {
-      dispatch({ type: 'markDirty', id: activeTab.id, dirty: doc.dirty })
-    }
-  }, [doc.dirty, activeTab])
-
-  const canLeave = () =>
-    !doc.dirty || window.confirm('You have unsaved changes. Discard them?')
-
-  const finishEdit = () => {
-    if (doc.exit()) setEditing(false)
-  }
-
-  const saveNow = async () => {
-    setSaveError(null)
-    try {
-      await doc.save()
     } catch (reason) {
-      setSaveError(reason instanceof Error ? reason.message : String(reason))
+      // Images may not load from this folder; reading the note still works.
+      console.error('Could not allow images from this folder', reason)
     }
   }
 
-  const openNote = async (path: string) => {
-    await allowFolder(dirname(path))
-    const intent = openIntent(settings.open_mode, path)
-    if (intent.kind === 'window') {
-      void invoke('open_note_window_cmd', { path }).catch(() => {
-        dispatch({ type: 'open', id: path, path })
+  // Every note opens as a tab in the window, like a browser.
+  const openPath = (path: string) => {
+    void allowFolder(dirnameOf(path))
+    dispatch({ type: 'open', id: path, path })
+  }
+  const openPathRef = useRef(openPath)
+  openPathRef.current = openPath
+
+  useEffect(() => {
+    if (IS_TAURI) {
+      void currentWindow()
+        .then((win) => setWindowLabel(win.label))
+        .catch((reason: unknown) => console.error('Could not read the window name', reason))
+    }
+    if (IS_TAURI) {
+      void getSettings()
+        .then(async (loaded) => {
+          setSettings(loaded)
+          if (loaded.last_folder) {
+            try {
+              setFiles(await invoke<string[]>('list_markdown_files', { folder: loaded.last_folder }))
+            } catch (reason) {
+              setNotice(errorText(reason))
+            }
+          }
+        })
+        .catch((reason: unknown) => setNotice(errorText(reason)))
+    }
+    if (queryNote) void allowFolder(dirnameOf(queryNote))
+  }, [])
+
+  // Reopen the windows and tabs from last time. The main window restores them all, and
+  // each other window takes its own. Nothing is saved until this has finished, so an
+  // empty start can never overwrite the saved session.
+  useEffect(() => {
+    if (!IS_TAURI) return
+    void (async () => {
+      try {
+        const label = (await currentWindow()).label
+        const saved =
+          label === 'main'
+            ? await invoke<SavedWindow | null>('restore_session')
+            : await invoke<SavedWindow | null>('take_pending_session')
+        if (saved) {
+          for (const path of saved.tabs) void allowFolder(dirnameOf(path))
+          dispatch({ type: 'replace', tabs: saved.tabs, active: saved.active })
+        }
+        if (label === 'main') {
+          // A file the app was launched with opens after the restored tabs.
+          const note = await invoke<string | null>('take_launch_note')
+          if (note) openPathRef.current(note)
+        }
+        setRestored(true)
+      } catch (reason) {
+        setNotice(`Could not restore your last session: ${errorText(reason)}`)
+      }
+    })()
+  }, [])
+
+  // Remember this window's tabs after every change, so the next launch can reopen them.
+  useEffect(() => {
+    if (!IS_TAURI || !restored) return
+    const tabs = session.tabs.map((tab) => tab.path)
+    const active = activeTab?.path ?? null
+    void invoke('save_session', { tabs, active }).catch((reason: unknown) =>
+      console.error('Could not remember the open tabs', reason),
+    )
+  }, [restored, session.tabs, session.activeId])
+
+  // Settings changed in any Snug window apply here too.
+  useEffect(() => listenTo<AppSettings>('snug://settings-changed', setSettings), [])
+
+  // Another window handed this one a note (a dropped tab, or a second launch).
+  useEffect(() => listenTo<string>('snug://open-tab', (path) => openPathRef.current(path)), [])
+
+  // Dropping Markdown files on the window opens each as a tab.
+  useEffect(
+    () =>
+      listenTo<{ paths?: string[] }>('tauri://drag-drop', (payload) => {
+        for (const path of payload.paths ?? []) {
+          if (isMarkdownFile(path)) openPathRef.current(path)
+        }
+      }),
+    [],
+  )
+
+  // Closing the window asks first when any tab has unsaved changes. Declining keeps it open.
+  useEffect(() => {
+    if (!IS_TAURI) return
+    let disposed = false
+    let stop: (() => void) | undefined
+    void currentWindow()
+      .then((win) =>
+        win.onCloseRequested(async (event) => {
+          if (
+            dirtyRef.current &&
+            !(await askYesNo('Some tabs have unsaved changes. Close the window and discard them?'))
+          ) {
+            event.preventDefault()
+            return
+          }
+          closingRef.current = true
+        }),
+      )
+      .then((unlisten) => {
+        if (disposed) unlisten()
+        else stop = unlisten
       })
-    } else {
-      dispatch({ type: 'open', id: path, path })
+      .catch((reason: unknown) => console.error('Could not handle window close', reason))
+    return () => {
+      disposed = true
+      stop?.()
+    }
+  }, [])
+
+  // Reloading the page with unsaved changes asks first. A confirmed close skips this.
+  useEffect(() => {
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!dirtyRef.current || closingRef.current) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
+
+  // The window title follows the active tab.
+  useEffect(() => {
+    if (!IS_TAURI) return
+    const title = activeTab ? `Snug — ${basename(activeTab.path)}` : 'Snug'
+    document.title = title
+    void currentWindow()
+      .then((win) => win.setTitle(title))
+      .catch((reason: unknown) => console.error('Could not set the window title', reason))
+  }, [activeTab?.path])
+
+  const saveSettings = async (partial: Partial<AppSettings>) => {
+    if (!IS_TAURI) {
+      setSettings((previous) => ({ ...previous, ...partial }))
+      return
+    }
+    try {
+      setSettings(await updateSettings(partial))
+    } catch (reason) {
+      setNotice(errorText(reason))
     }
   }
 
-  const switchToPath = async (path: string) => {
-    if (!canLeave()) return
-    const existing = session.tabs.find((tab) => tab.path === path)
-    if (existing) dispatch({ type: 'select', id: existing.id })
-    else await openNote(path)
-  }
+  const toggleTheme = () =>
+    void saveSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
 
-  const switchToTab = (id: string) => {
-    if (id === activeTab?.id || canLeave()) dispatch({ type: 'select', id })
+  const toggleLibrary = () =>
+    void saveSettings({ view: settings.view === 'library' ? 'focus' : 'library' })
+
+  const openFile = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const picked = await open({
+        multiple: true,
+        filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
+      })
+      const paths = Array.isArray(picked) ? picked : typeof picked === 'string' ? [picked] : []
+      for (const path of paths) openPath(path)
+    } catch (reason) {
+      if (IS_TAURI) setNotice(errorText(reason))
+    }
   }
 
   const openFolder = async () => {
@@ -171,212 +272,186 @@ export default function App() {
       const folder = await open({ directory: true })
       if (typeof folder !== 'string') return
       await allowFolder(folder)
-      const listed = await invoke<string[]>('list_markdown_files', { folder })
-      setFiles(listed.length ? listed : Object.keys(NOTES))
-      setSettings(await updateSettings({ last_folder: folder }))
-    } catch {
-      // browser preview
+      setFiles(await invoke<string[]>('list_markdown_files', { folder }))
+      await saveSettings({ last_folder: folder })
+    } catch (reason) {
+      if (IS_TAURI) setNotice(errorText(reason))
     }
   }
 
-  const openFile = async () => {
+  const closeWindow = async () => {
+    closingRef.current = true
     try {
-      const { open } = await import('@tauri-apps/plugin-dialog')
-      const picked = await open({
-        multiple: false,
-        filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }],
-      })
-      if (typeof picked === 'string') await openNote(picked)
-    } catch {
-      // browser preview
+      await (await currentWindow()).destroy()
+    } catch (reason) {
+      setNotice(errorText(reason))
     }
   }
 
-  const toggleTheme = async () => {
-    const theme = settings.theme === 'dark' ? 'light' : 'dark'
+  const closeTab = async (id: string) => {
+    const tab = session.tabs.find((item) => item.id === id)
+    if (!tab) return
+    if (
+      tab.dirty &&
+      !(await askYesNo(`"${basename(tab.path)}" has unsaved changes. Close it and discard them?`))
+    ) {
+      return
+    }
+    // Closing the last tab closes the window, as in a browser.
+    if (session.tabs.length === 1 && IS_TAURI) {
+      void closeWindow()
+      return
+    }
+    dispatch({ type: 'close', id, force: true })
+  }
+
+  const closeActive = () => {
+    if (activeTab) void closeTab(activeTab.id)
+    else if (IS_TAURI) void closeWindow()
+  }
+
+  // A tab released away from the strip stays, joins another Snug window, or becomes a new window.
+  const detachTab = async (id: string) => {
+    const tab = session.tabs.find((item) => item.id === id)
+    if (!tab || !IS_TAURI || !windowLabel) return
+    if (tab.dirty) {
+      setNotice('Save this tab before moving it to another window.')
+      return
+    }
     try {
-      setSettings(await updateSettings({ theme }))
-    } catch {
-      setSettings({ ...settings, theme })
+      const result = await invoke<string>('drop_tab', { origin: windowLabel, path: tab.path })
+      if (result === 'stay') return
+      if (session.tabs.length === 1) await closeWindow()
+      else dispatch({ type: 'close', id, force: true })
+    } catch (reason) {
+      setNotice(errorText(reason))
     }
   }
 
-  const toggleLibrary = async () => {
-    const view = settings.view === 'library' ? 'focus' : 'library'
+  const newWindow = async () => {
+    if (!IS_TAURI) return
     try {
-      setSettings(await updateSettings({ view }))
-    } catch {
-      setSettings({ ...settings, view })
+      await invoke('new_window')
+    } catch (reason) {
+      setNotice(errorText(reason))
     }
   }
 
+  // Keyboard shortcuts, as in a browser. Ctrl+S and Esc belong to the active note pane.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'o') {
+      const modifier = event.ctrlKey || event.metaKey
+      const key = event.key.toLowerCase()
+      // Reloading would discard every open tab in this window, so the reload keys do nothing.
+      if (event.key === 'F5' || (modifier && key === 'r')) {
+        event.preventDefault()
+      } else if (modifier && (key === 'o' || key === 't')) {
         event.preventDefault()
         void openFile()
-        return
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+      } else if (modifier && key === 'w') {
         event.preventDefault()
-        const find = (window as unknown as { find?: (text: string) => boolean }).find
-        find?.call(window, prompt('Find in note:') ?? '')
-        return
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
+        closeActive()
+      } else if (modifier && event.key === 'Tab') {
         event.preventDefault()
-        void toggleLibrary()
-        return
-      }
-      if (!editing) return
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        dispatch({ type: 'cycle', step: event.shiftKey ? -1 : 1 })
+      } else if (modifier && key === 'b') {
         event.preventDefault()
-        void saveNow()
-      }
-      if (event.key === 'Escape') {
+        toggleLibrary()
+      } else if (modifier && key === 'f') {
         event.preventDefault()
-        finishEdit()
+        setFindOpen(true)
+      } else if (modifier && key === 'n') {
+        event.preventDefault()
+        void newWindow()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   })
 
-  useEffect(() => {
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!doc.dirty) return
-      event.preventDefault()
-      event.returnValue = ''
-    }
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  })
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    void import('@tauri-apps/api/window')
-      .then(({ getCurrentWindow }) =>
-        getCurrentWindow()
-          .onCloseRequested((event: { preventDefault: () => void }) => {
-            if (doc.dirty && !window.confirm('You have unsaved changes. Close anyway?')) {
-              event.preventDefault()
-            }
-          })
-          .then((fn) => {
-            unlisten = fn
-          }),
-      )
-      .catch(() => {})
-    return () => unlisten?.()
-  })
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined
-    void import('@tauri-apps/api/event')
-      .then(({ listen }) =>
-        listen<{ paths?: string[] }>('tauri://drag-drop', (event) => {
-          const path = event.payload.paths?.[0]
-          if (path && /\.markdown?$/i.test(path)) void openNote(path)
-        }).then((fn) => {
-          unlisten = fn
-        }),
-      )
-      .catch(() => {})
-    return () => unlisten?.()
-  })
-
-  const closeTab = (id: string) => {
-    if (doc.dirty && id === activeTab?.id && !window.confirm('Discard unsaved changes?')) {
-      return
-    }
-    dispatch({ type: 'close', id, force: true })
-  }
-
   return (
     <div className={`theme-${settings.theme}`} style={{ display: 'flex' }}>
       {settings.view === 'library' && (
         <LibrarySidebar
           files={files}
-          selected={activeTab?.path ?? null}
-          onSelect={(path) =>
-            void switchToPath(resolveNotePath(path, settings.last_folder))
+          selected={
+            files.find((file) => resolveNotePath(file, settings.last_folder) === activeTab?.path) ??
+            null
           }
+          onSelect={(relative) => openPath(resolveNotePath(relative, settings.last_folder))}
           onOpenFolder={() => void openFolder()}
         />
       )}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <div className="snug-toolbar">
-          <button className="snug-tool-button" onClick={() => void toggleLibrary()}>
+          <button className="snug-tool-button" onClick={toggleLibrary}>
             ▤ Library
           </button>
-          <button className="snug-tool-button" onClick={() => void toggleTheme()}>
+          <button className="snug-tool-button" onClick={toggleTheme}>
             {settings.theme === 'dark' ? '☀ Light' : '☾ Dark'}
           </button>
           <button className="snug-tool-button" onClick={() => void openFile()}>
             ⌕ Open
           </button>
-          {editing && (
-            <button className="snug-tool-button" onClick={() => void saveNow()}>
-              Save
-            </button>
-          )}
         </div>
-        <div className="snug-tabbar">
-          {session.tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`snug-tab ${tab.id === session.activeId ? 'active' : ''}`}
-              onClick={() => switchToTab(tab.id)}
-            >
-              {tab.path}
-              <span
-                className="snug-tab-close"
-                role="button"
-                aria-label={`Close ${tab.path}`}
-                onClick={(event) => {
+        {findOpen && (
+          <div className="snug-find">
+            <input
+              autoFocus
+              value={findText}
+              placeholder="Find in note (Enter to search, Esc to close)"
+              onChange={(event) => setFindText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  const find = (window as unknown as { find: (text: string) => boolean }).find
+                  find.call(window, findText)
+                }
+                if (event.key === 'Escape') {
+                  // Esc closes only the find box; it must not also leave edit mode.
                   event.stopPropagation()
-                  closeTab(tab.id)
-                }}
-              >
-                ×
-              </span>
-            </button>
-          ))}
-          <button
-            className="snug-new-tab"
-            onClick={() => void openNote('ideas.md')}
-            title="Open in new tab (when tab mode is on)"
-          >
-            + New tab
-          </button>
-        </div>
-        {doc.error && <div className="snug-error">{doc.error}</div>}
-        {editing ? (
-          <>
-            <Editor
-              key={activeTab?.id}
-              value={doc.source}
-              onChange={doc.setSource}
-              onSave={() => void saveNow()}
-              onExit={finishEdit}
+                  setFindOpen(false)
+                }
+              }}
             />
-            <div className="snug-editor-status">
-              <button className="snug-tool-button" onClick={() => void saveNow()}>
-                Save
-              </button>
-              <span>{doc.dirty ? '● Unsaved' : 'Saved'} · Ctrl+S to save · Esc to exit</span>
-              {saveError && <span className="snug-error">{saveError}</span>}
-            </div>
-          </>
-        ) : (
-          <Reader
-            source={doc.source}
-            baseDir={activeTab ? dirname(activeTab.path) : ''}
+          </div>
+        )}
+        <TabStrip
+          tabs={session.tabs}
+          activeId={session.activeId}
+          onSelect={(id) => dispatch({ type: 'select', id })}
+          onClose={(id) => void closeTab(id)}
+          onMove={(id, toIndex) => dispatch({ type: 'move', id, toIndex })}
+          onDetach={(id) => void detachTab(id)}
+          onNew={() => void openFile()}
+        />
+        {notice && (
+          <div className="snug-error" role="alert" onClick={() => setNotice(null)}>
+            {notice}
+          </div>
+        )}
+        {session.tabs.length === 0 && (
+          <div className="snug-empty">
+            <p>No note open.</p>
+            <button className="snug-tool-button" onClick={() => void openFile()}>
+              Open note…
+            </button>
+            <button className="snug-tool-button" onClick={() => void openFolder()}>
+              Open folder…
+            </button>
+          </div>
+        )}
+        {session.tabs.map((tab) => (
+          <NotePane
+            key={tab.id}
+            path={tab.path}
+            active={tab.id === session.activeId}
             theme={settings.theme}
             fontSize={settings.font_size}
-            onEdit={() => setEditing(true)}
+            io={io}
+            onDirtyChange={(dirty) => dispatch({ type: 'markDirty', id: tab.id, dirty })}
+            onOpenNote={openPath}
           />
-        )}
+        ))}
       </div>
     </div>
   )

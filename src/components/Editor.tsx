@@ -23,7 +23,6 @@ export default function Editor({ value, onChange, onSave, onExit }: EditorProps)
       extensions: [
         markdown(),
         history(),
-        // Save/Exit are handled once by App's window-level shortcuts.
         keymap.of([...defaultKeymap, ...historyKeymap]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
@@ -37,8 +36,6 @@ export default function Editor({ value, onChange, onSave, onExit }: EditorProps)
     })
     const view = new EditorView({ state, parent: host.current })
     return () => view.destroy()
-    // Mount once per note; App remounts via key when the path changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return <div className="snug-editor" ref={host} />

@@ -1,7 +1,15 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
+
+/// Event sent to every window after the settings change.
+pub const SETTINGS_EVENT: &str = "snug://settings-changed";
+
+/// Serialises read-merge-write, so two windows changing settings at once cannot lose a change.
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -17,20 +25,12 @@ pub enum View {
     Library,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum OpenMode {
-    Window,
-    Tab,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppSettings {
     pub theme: Theme,
     pub view: View,
     pub font_size: u32,
     pub last_folder: Option<String>,
-    pub open_mode: OpenMode,
 }
 
 impl Default for AppSettings {
@@ -40,7 +40,6 @@ impl Default for AppSettings {
             view: View::Focus,
             font_size: 18,
             last_folder: None,
-            open_mode: OpenMode::Window,
         }
     }
 }
@@ -52,30 +51,65 @@ pub fn settings_path() -> Result<PathBuf, String> {
     Ok(base.join("Snug").join("settings.json"))
 }
 
-#[tauri::command]
-pub fn load_settings() -> AppSettings {
+/// The saved settings. A missing or unreadable file gives the defaults. Unknown keys
+/// (such as the old `open_mode`) are ignored.
+fn read_settings() -> AppSettings {
     let path = match settings_path() {
         Ok(value) => value,
         Err(_) => return AppSettings::default(),
     };
-    let text = match fs::read_to_string(&path) {
-        Ok(value) => value,
-        Err(_) => return AppSettings::default(),
-    };
-    match serde_json::from_str::<AppSettings>(&text) {
-        Ok(settings) => settings,
+    match fs::read_to_string(&path) {
+        Ok(text) => serde_json::from_str::<AppSettings>(&text).unwrap_or_default(),
         Err(_) => AppSettings::default(),
     }
 }
 
-#[tauri::command]
-pub fn save_settings(settings: AppSettings) -> Result<(), String> {
+/// Apply a partial update (only the keys given) to the current settings.
+pub fn merge_settings(
+    current: &AppSettings,
+    partial: serde_json::Value,
+) -> Result<AppSettings, String> {
+    let serde_json::Value::Object(changes) = partial else {
+        return Err("A settings update must be an object".to_string());
+    };
+    let mut merged = serde_json::to_value(current).map_err(|error| error.to_string())?;
+    if let serde_json::Value::Object(map) = &mut merged {
+        for (key, value) in changes {
+            map.insert(key, value);
+        }
+    }
+    serde_json::from_value(merged).map_err(|error| format!("Invalid setting: {error}"))
+}
+
+fn write_settings(settings: &AppSettings) -> Result<(), String> {
     let path = settings_path()?;
     let parent = path.parent().ok_or_else(|| "Invalid settings path".to_string())?;
-    fs::create_dir_all(parent).map_err(|error| format!("Could not create settings folder: {error}"))?;
-    let json = serde_json::to_string_pretty(&settings)
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Could not create settings folder: {error}"))?;
+    let json = serde_json::to_string_pretty(settings)
         .map_err(|error| format!("Could not serialise settings: {error}"))?;
-    fs::write(&path, json).map_err(|error| format!("Could not save settings: {error}"))
+    crate::commands::write_atomically(&path, json.as_bytes())
+        .map_err(|error| format!("Could not save settings: {error}"))
+}
+
+#[tauri::command]
+pub fn load_settings() -> AppSettings {
+    read_settings()
+}
+
+/// Change some settings and tell every window about the result.
+#[tauri::command]
+pub fn update_settings(
+    app: AppHandle,
+    partial: serde_json::Value,
+) -> Result<AppSettings, String> {
+    let _guard = WRITE_LOCK
+        .lock()
+        .map_err(|_| "Settings are busy, try again".to_string())?;
+    let next = merge_settings(&read_settings(), partial)?;
+    write_settings(&next)?;
+    let _ = app.emit(SETTINGS_EVENT, &next);
+    Ok(next)
 }
 
 #[cfg(test)]
@@ -89,7 +123,6 @@ mod tests {
             view: View::Library,
             font_size: 20,
             last_folder: Some("C:/notes".to_string()),
-            open_mode: OpenMode::Tab,
         };
         let json = serde_json::to_string(&settings).unwrap();
         let back: AppSettings = serde_json::from_str(&json).unwrap();
@@ -97,12 +130,34 @@ mod tests {
     }
 
     #[test]
-    fn settings_defaults_are_dark_and_window() {
+    fn settings_defaults_are_dark_and_focus() {
         let settings = AppSettings::default();
         assert_eq!(settings.theme, Theme::Dark);
         assert_eq!(settings.view, View::Focus);
         assert_eq!(settings.font_size, 18);
-        assert_eq!(settings.open_mode, OpenMode::Window);
         assert_eq!(settings.last_folder, None);
+    }
+
+    #[test]
+    fn old_files_with_open_mode_still_load() {
+        let json = r#"{"theme":"light","view":"focus","font_size":18,"last_folder":null,"open_mode":"window"}"#;
+        let settings: AppSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.theme, Theme::Light);
+    }
+
+    #[test]
+    fn merge_changes_only_the_given_keys() {
+        let current = AppSettings::default();
+        let next = merge_settings(&current, serde_json::json!({ "theme": "light" })).unwrap();
+        assert_eq!(next.theme, Theme::Light);
+        assert_eq!(next.font_size, 18);
+        assert_eq!(next.view, View::Focus);
+    }
+
+    #[test]
+    fn merge_rejects_invalid_values() {
+        let current = AppSettings::default();
+        assert!(merge_settings(&current, serde_json::json!({ "theme": "neon" })).is_err());
+        assert!(merge_settings(&current, serde_json::json!(["not", "an", "object"])).is_err());
     }
 }

@@ -1,18 +1,29 @@
 import { describe, expect, it, vi } from 'vitest'
-import { updateSettings, type SettingsIo } from '../src/lib/settings'
+import { getSettings, updateSettings, type AppSettings, type SettingsIo } from '../src/lib/settings'
 
 describe('settings', () => {
-  it('update_settings_merges_defaults', async () => {
+  it('get_settings_fills_missing_keys_with_defaults', async () => {
     const io: SettingsIo = {
-      load: vi.fn(async () => null),
-      save: vi.fn(async () => {}),
+      load: vi.fn(async () => ({ theme: 'light' as const })),
+      update: vi.fn(),
+    }
+    const result = await getSettings(io)
+    expect(result).toEqual({
+      theme: 'light',
+      view: 'focus',
+      font_size: 18,
+      last_folder: null,
+    })
+  })
+
+  it('update_settings_sends_only_the_changes_and_returns_the_saved_settings', async () => {
+    const saved: AppSettings = { theme: 'light', view: 'focus', font_size: 18, last_folder: null }
+    const io: SettingsIo = {
+      load: async () => null,
+      update: vi.fn(async () => saved),
     }
     const result = await updateSettings({ theme: 'light' }, io)
-    expect(result.theme).toBe('light')
-    expect(result.font_size).toBe(18)
-    expect(result.open_mode).toBe('window')
-    expect(result.view).toBe('focus')
-    expect(result.last_folder).toBeNull()
-    expect(io.save).toHaveBeenCalledWith(result)
+    expect(io.update).toHaveBeenCalledWith({ theme: 'light' })
+    expect(result).toEqual(saved)
   })
 })

@@ -31,6 +31,23 @@
   border-color: rgba(127, 127, 160, 0.3);
 }
 
+.snug-tab {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+.snug-tab.dragging {
+  opacity: 0.6;
+  cursor: grabbing;
+}
+
+.snug-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .snug-tab-close {
   background: transparent;
   border: 0;
@@ -52,4 +69,19 @@
   cursor: pointer;
   font: inherit;
   font-size: 0.8em;
+}
+
+.snug-find {
+  padding: 6px 18px 0;
+}
+
+.snug-find input {
+  width: min(360px, 90%);
+  background: rgba(127, 127, 160, 0.12);
+  border: 1px solid rgba(127, 127, 160, 0.35);
+  color: inherit;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 0.85em;
 }

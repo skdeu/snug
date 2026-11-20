@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Snug default capability","local":true,"windows":["main","note-*"],"permissions":["core:default","dialog:default","dialog:allow-open"]}}
+{"default":{"identifier":"default","description":"Snug default capability","local":true,"windows":["main","note-*"],"permissions":["core:default","dialog:default","dialog:allow-open","dialog:allow-confirm","core:window:allow-destroy","core:window:allow-set-title"]}}

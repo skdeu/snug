@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react'
+import { useMemo, type CSSProperties, type MouseEvent } from 'react'
 import { renderMarkdown } from '../lib/markdown'
 import { assetUrl } from '../lib/assets'
 import type { Theme } from '../lib/theme'
@@ -12,9 +12,11 @@ interface ReaderProps {
   theme: Theme
   fontSize: number
   onEdit?: () => void
+  /** Called with the link's href. The reader never follows links itself. */
+  onLink?: (href: string) => void
 }
 
-export default function Reader({ source, baseDir, theme, fontSize, onEdit }: ReaderProps) {
+export default function Reader({ source, baseDir, theme, fontSize, onEdit, onLink }: ReaderProps) {
   const html = useMemo(
     () =>
       renderMarkdown(source, {
@@ -23,6 +25,26 @@ export default function Reader({ source, baseDir, theme, fontSize, onEdit }: Rea
       }),
     [source, baseDir],
   )
+
+  const handleClick = (event: MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement
+    const link = target.closest?.('a')
+    if (!link || !event.currentTarget.contains(link)) return
+    // A link must never navigate the window away from Snug, so every click is handled here.
+    event.preventDefault()
+    const href = link.getAttribute('href') ?? ''
+    if (href.startsWith('#')) {
+      let id = href.slice(1)
+      try {
+        id = decodeURIComponent(id)
+      } catch {
+        // keep the raw id
+      }
+      document.getElementById(id)?.scrollIntoView({ block: 'start' })
+      return
+    }
+    onLink?.(href)
+  }
 
   return (
     <div
@@ -36,7 +58,11 @@ export default function Reader({ source, baseDir, theme, fontSize, onEdit }: Rea
           </button>
         </div>
       )}
-      <article className="snug-reader" dangerouslySetInnerHTML={{ __html: html }} />
+      <article
+        className="snug-reader"
+        onClick={handleClick}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </div>
   )
 }
