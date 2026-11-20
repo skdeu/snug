@@ -18,7 +18,7 @@ Version numbers: the `v1` and `v1.1` git tags kept `package.json` at `0.1.0`, an
 - The Edit button stays on each note's own bar, not the top bar, because each tab keeps its own edit mode.
 - The app still starts in the focus view. The canvas showed the library open.
 
-## [1.3.1] — built 2026-11-20 (committed, not tagged)
+## [1.3.1] — built 2026-11-20 (committed with the 1.3 work, not tagged)
 
 ### Added
 - Colour picker in the toolbar, with five palettes: Graphite and sage (default), Harbor teal, Umber and brass, Slate and ice, and Ash and rose. Each works in dark and light. The choice is saved in `settings.json` as `palette`.
@@ -31,7 +31,7 @@ Version numbers: the `v1` and `v1.1` git tags kept `package.json` at `0.1.0`, an
 ### Known gaps
 - Same as 1.3.0.
 
-## [1.3.0] — built and installed 2026-11-20 (committed, not tagged)
+## [1.3.0] — built and installed 2026-11-20 (committed with the 1.3 work, not tagged)
 
 ### Added
 - In-app glass look. The window paints a soft backdrop, and the tab strip, toolbar, sidebar, find bar and notices sit on blurred glass. A solid fallback is used where `backdrop-filter` is not supported.
@@ -58,7 +58,7 @@ Version numbers: the `v1` and `v1.1` git tags kept `package.json` at `0.1.0`, an
 - Not tested on Windows 10.
 - The README says the installer registers `.md` files to open in Snug. After the install I found no Snug registration under the user's file types, so this may be wrong.
 
-## [1.2.0] — built and installed 2026-11-20 (committed, not tagged)
+## [1.2.0] — built and installed 2026-11-20 (tagged v1.2.0)
 
 ### Added
 - The main window keeps its saved place and size. It used to always open maximized.
@@ -92,7 +92,7 @@ Version numbers: the `v1` and `v1.1` git tags kept `package.json` at `0.1.0`, an
 - Tear-off windows.
 - Session restore: the windows and tabs you had open reopen on the next start.
 
-## [0.1.0] — first build, 2026-11-19
+## [0.1.0] — first build, 2026-11-19 (tagged v0.1.0)
 
 ### Added
 - Tauri app scaffold, with Markdown rendering, a dark and light reader view, a notes library sidebar, pencil edit mode, persisted settings, native file and folder dialogs, and a new-window launch.
