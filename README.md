@@ -4,7 +4,7 @@ A cozy home for your notes. Snug is a small Windows desktop app that opens `.md`
 
 ## Install
 
-Run `src-tauri/target/release/bundle/nsis/Snug_1.2.0_x64-setup.exe`. It installs per user to `the install folder` by default and registers `.md` / `.markdown` files to open in Snug. Windows 11 includes WebView2; Windows 10 needs the WebView2 runtime.
+Run `src-tauri/target/release/bundle/nsis/Snug_0.1.0_x64-setup.exe` (2.57 MB). It installs per user to `the current user app folder` by default and registers `.md` / `.markdown` files to open in Snug. Windows 11 includes WebView2; Windows 10 needs the WebView2 runtime (already present on this machine).
 
 To set as default: right-click any `.md` file → Open with → choose Snug → set as default.
 
@@ -22,8 +22,6 @@ To set as default: right-click any `.md` file → Open with → choose Snug → 
 - Ctrl+N opens a new, empty window.
 - Snug remembers the windows and tabs you have open. Start it again and they come back, in the same places. A window you close while others are still open is forgotten. The last window is remembered when you close it, and notes that were deleted are skipped.
 - Drag a `.md` file onto the window to open it.
-- If Snug closes unexpectedly, text you had not saved comes back when you start it again.
-- If a file changed on disk while you had unsaved edits, Snug keeps your edits as a draft `.md` file. The notice shows the full path of that file.
 
 ## Keyboard shortcuts
 

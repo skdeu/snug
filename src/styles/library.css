@@ -1,19 +1,21 @@
 .snug-sidebar {
   width: 240px;
   flex: none;
-  border-right: 1px solid rgba(127, 127, 160, 0.25);
+  border-right: 1px solid var(--border);
   padding: 16px 10px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  height: 100vh;
   box-sizing: border-box;
 }
 
 .snug-open-folder {
-  background: transparent;
-  border: 1px solid rgba(127, 127, 160, 0.4);
-  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-idle);
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 6px;
   padding: 7px 10px;
   text-align: left;
@@ -22,12 +24,27 @@
   font-size: 0.85em;
 }
 
+.snug-search-wrap {
+  position: relative;
+}
+
+.snug-search-wrap > svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
 .snug-search {
-  background: rgba(127, 127, 160, 0.12);
-  border: 1px solid rgba(127, 127, 160, 0.25);
-  color: inherit;
+  box-sizing: border-box;
+  width: 100%;
+  background: var(--surface-idle);
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 6px;
-  padding: 7px 10px;
+  padding: 7px 10px 7px 30px;
   font: inherit;
   font-size: 0.85em;
 }
@@ -35,7 +52,7 @@
 .snug-file-label {
   font-size: 0.7em;
   letter-spacing: 0.12em;
-  opacity: 0.55;
+  color: var(--text-muted);
   text-transform: uppercase;
   padding: 4px 6px;
 }
@@ -52,10 +69,10 @@
   width: 100%;
   background: transparent;
   border: 0;
-  color: inherit;
+  color: var(--text-muted);
   text-align: left;
   padding: 7px 8px;
-  border-radius: 5px;
+  border-radius: 6px;
   cursor: pointer;
   font: inherit;
   font-size: 0.85em;
@@ -64,11 +81,16 @@
   text-overflow: ellipsis;
 }
 
+.snug-file-list button svg {
+  vertical-align: -2px;
+  margin-right: 6px;
+}
+
 .snug-file-list button:hover {
-  background: rgba(127, 127, 160, 0.14);
+  background: var(--surface-hover);
 }
 
 .snug-file-list button.selected {
-  background: rgba(111, 107, 224, 0.28);
-  color: #b9c0ff;
+  background: var(--accent-soft);
+  color: var(--text);
 }

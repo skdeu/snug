@@ -10,8 +10,14 @@ body,
 }
 
 body {
-  background: #0f1117;
-  color: #e6e9f0;
+  background: var(--bg-solid);
+  color: var(--text);
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .snug-app {
@@ -28,8 +34,7 @@ body {
   min-height: 60vh;
   gap: 0.75rem;
   text-align: center;
-  color: inherit;
-  opacity: 0.65;
+  color: var(--text-muted);
 }
 
 .snug-empty p {

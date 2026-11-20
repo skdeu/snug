@@ -1,13 +1,76 @@
 .snug-toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  padding: 10px 18px 0;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 18px 8px;
+}
+
+/* The five palette swatches, at the left of the toolbar. The pressed one is ringed. */
+.snug-swatches {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+
+.snug-swatch {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.snug-swatch[aria-pressed='true'] {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* Library, theme and Open share one bordered group, as on the canvas. */
+.snug-segment {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-idle);
+  overflow: hidden;
+}
+
+.snug-seg-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 0;
+  padding: 6px 12px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.snug-seg-button + .snug-seg-button {
+  border-left: 1px solid var(--border);
+}
+
+.snug-seg-button:hover {
+  background: var(--surface-hover);
+}
+
+.snug-seg-button[aria-pressed='true'] {
+  background: var(--accent-soft);
 }
 
 .snug-tool-button {
-  background: rgba(127, 127, 160, 0.12);
-  border: 1px solid rgba(127, 127, 160, 0.3);
-  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-idle);
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 6px;
   padding: 5px 12px;
   cursor: pointer;
@@ -16,14 +79,18 @@
 }
 
 .snug-tool-button:hover {
-  background: rgba(111, 107, 224, 0.25);
+  background: var(--surface-hover);
+}
+
+.snug-tool-button[aria-pressed='true'] {
+  background: var(--accent-soft);
 }
 
 .snug-editor {
   flex: 1;
   min-height: 60vh;
-  background: #151922;
-  color: #e6e9f0;
+  background: var(--reader-bg);
+  color: var(--text);
 }
 
 .snug-editor-status {
@@ -32,11 +99,11 @@
   gap: 12px;
   padding: 8px 18px;
   font-size: 0.78em;
-  opacity: 0.9;
+  color: var(--text-muted);
 }
 
 .snug-error {
-  color: #ff9aa8;
+  color: var(--error);
   padding: 8px 18px;
   font-size: 0.85em;
 }
@@ -72,36 +139,28 @@
 }
 
 .snug-reader a {
-  color: #9aa6ff;
+  color: var(--accent-text);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
-.theme-light .snug-reader a {
-  color: #4b45c4;
-}
-
 .snug-reader blockquote {
-  border-left: 3px solid #6f6be0;
+  border-left: 3px solid var(--accent);
   margin: 1.5em 0;
   padding: 0.4em 1em;
-  opacity: 0.9;
+  color: var(--text-muted);
 }
 
 .snug-reader pre {
-  background: #1d2233;
+  background: var(--code-bg);
   border-radius: 8px;
   padding: 1em 1.2em;
   overflow-x: auto;
   font-size: 0.85em;
 }
 
-.theme-light .snug-reader pre {
-  background: #eeebf5;
-}
-
 .snug-reader :not(pre) > code {
-  background: rgba(127, 127, 160, 0.18);
+  background: var(--code-bg);
   border-radius: 4px;
   padding: 0.1em 0.35em;
   font-size: 0.9em;
@@ -115,7 +174,7 @@
 
 .snug-reader th,
 .snug-reader td {
-  border: 1px solid rgba(127, 127, 160, 0.35);
+  border: 1px solid var(--border);
   padding: 0.5em 0.75em;
   text-align: left;
 }
@@ -127,6 +186,45 @@
 
 .snug-reader hr {
   border: 0;
-  border-top: 1px solid rgba(127, 127, 160, 0.3);
+  border-top: 1px solid var(--border);
   margin: 2em 0;
 }
+
+.snug-reader-pane {
+  background: var(--reader-bg);
+}
+
+.snug-reader th {
+  background: var(--surface-idle);
+  font-weight: 500;
+}
+
+.snug-reader li.task-list-item {
+  list-style: none;
+  margin-left: -1.3em;
+}
+
+.snug-reader .task-list-item-checkbox {
+  margin: 0 0.5em 0 0;
+  accent-color: var(--accent);
+}
+
+.snug-reader .footnotes {
+  margin-top: 2.5em;
+  padding-top: 1em;
+  border-top: 1px solid var(--border);
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.snug-reader .footnote-ref a,
+.snug-reader .footnote-backref {
+  color: var(--accent-text);
+  text-decoration: none;
+}
+
+.snug-reader ::selection,
+.snug-editor ::selection {
+  background: var(--accent-soft);
+}
+

@@ -1,3 +1,52 @@
+/* Graphite and sage. Dark is the default (on :root and .theme-dark). Light overrides it. */
+:root,
+.theme-dark {
+  --ambient-1: #2e4f3c;
+  --ambient-2: #1d3f47;
+  --bg-solid: #14171a;
+  --glass: rgba(20, 23, 26, 0.58);
+  --glass-solid: #1a1e22;
+  --reader-bg: rgba(20, 23, 26, 0.92);
+  --text: #e6eae7;
+  --text-muted: #a9b3ad;
+  --accent: #9cc7a4;
+  --accent-text: #9cc7a4;
+  --accent-soft: rgba(156, 199, 164, 0.22);
+  --border: rgba(255, 255, 255, 0.12);
+  --highlight: rgba(255, 255, 255, 0.1);
+  --error: #f0a093;
+  --focus: #9cc7a4;
+  --surface-idle: rgba(255, 255, 255, 0.05);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --code-bg: rgba(255, 255, 255, 0.08);
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-window: 14px;
+  color-scheme: dark;
+}
+
+.theme-light {
+  --ambient-1: #cfe3d3;
+  --ambient-2: #d6e6e0;
+  --bg-solid: #eef1ee;
+  --glass: rgba(238, 241, 238, 0.66);
+  --glass-solid: #e4e9e4;
+  --reader-bg: rgba(251, 252, 251, 0.95);
+  --text: #1d2420;
+  --text-muted: #4e5a53;
+  --accent: #2f6b45;
+  --accent-text: #2f6b45;
+  --accent-soft: rgba(47, 107, 69, 0.14);
+  --border: rgba(42, 39, 37, 0.12);
+  --highlight: rgba(255, 255, 255, 0.85);
+  --error: #a3372a;
+  --focus: #2f6b45;
+  --surface-idle: rgba(255, 255, 255, 0.4);
+  --surface-hover: rgba(42, 39, 37, 0.06);
+  --code-bg: rgba(0, 0, 0, 0.05);
+  color-scheme: light;
+}
+
 .snug-reader {
   --reader-max-width: 700px;
   --reader-line-height: 1.75;

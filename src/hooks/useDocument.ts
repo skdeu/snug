@@ -162,6 +162,8 @@ export interface UseDocument {
   error: string | null
   /** A message about drafts the user should see, such as text that was kept aside. */
   notice: string | null
+  /** Hides the notice. The note and any draft are left as they are. */
+  dismissNotice: () => void
 }
 
 interface Loaded {
@@ -326,6 +328,10 @@ export function useDocument(
     return false
   }, [source, savedSource, initialPath])
 
+  const dismissNotice = useCallback(() => {
+    setLoaded((prev) => (prev && prev.notice ? { ...prev, notice: null } : prev))
+  }, [])
+
   return {
     source,
     setSource,
@@ -335,5 +341,6 @@ export function useDocument(
     loading,
     error,
     notice,
+    dismissNotice,
   }
 }

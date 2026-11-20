@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import '../styles/library.css'
+import Icon from './Icon'
 
 interface LibrarySidebarProps {
   files: string[]
@@ -22,14 +23,19 @@ export default function LibrarySidebar({
   return (
     <aside className="snug-sidebar">
       <button className="snug-open-folder" onClick={onOpenFolder}>
+        <Icon name="open" size={14} />
         Open folder…
       </button>
-      <input
-        className="snug-search"
-        placeholder="Search notes"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-      />
+      <div className="snug-search-wrap">
+        <Icon name="search" size={14} />
+        <input
+          className="snug-search"
+          aria-label="Search notes"
+          placeholder="Search notes"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
       <div className="snug-file-label">MY NOTES</div>
       <ul className="snug-file-list">
         {visible.map((file) => (
@@ -39,6 +45,7 @@ export default function LibrarySidebar({
               onClick={() => onSelect(file)}
               title={file}
             >
+              <Icon name="file" size={14} />
               {file}
             </button>
           </li>

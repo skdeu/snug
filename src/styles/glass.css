@@ -1,0 +1,94 @@
+/*
+ * In-app glass, as the canvas shows it: a floating glass window over the ambient backdrop.
+ * The outer area shows the backdrop, and the window itself is the glass.
+ */
+.snug-window {
+  box-sizing: border-box;
+  min-height: 100vh;
+  padding: 40px 48px 48px;
+  background-color: var(--bg-solid);
+  background-image:
+    radial-gradient(900px 620px at 12% 8%, var(--ambient-1) 0%, rgba(0, 0, 0, 0) 62%),
+    radial-gradient(820px 560px at 92% 96%, var(--ambient-2) 0%, rgba(0, 0, 0, 0) 60%);
+}
+
+.snug-frame {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  border-radius: var(--radius-window);
+  overflow: hidden;
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35), inset 0 1px 0 var(--highlight);
+}
+
+/* The chrome sits on the window's glass, so it needs no fill of its own. */
+.snug-tabbar,
+.snug-toolbar,
+.snug-sidebar,
+.snug-find {
+  background: transparent;
+}
+
+.snug-notice {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  backdrop-filter: blur(24px) saturate(150%);
+  box-shadow: inset 0 1px 0 var(--highlight);
+}
+
+/* Without backdrop-filter, the window is solid and the ambient backdrop is not painted. */
+@supports not (backdrop-filter: blur(1px)) {
+  .snug-window {
+    background-image: none;
+  }
+
+  .snug-frame,
+  .snug-notice {
+    background: var(--glass-solid);
+  }
+}
+
+/* Notices sit on the glass. Errors take the error colour, information takes the accent icon. */
+.snug-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 18px 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.snug-notice svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.snug-notice-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.snug-notice-info svg {
+  color: var(--accent);
+}
+
+.snug-notice.snug-error {
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.snug-notice-close {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+}

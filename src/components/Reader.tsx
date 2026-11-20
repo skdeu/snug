@@ -2,6 +2,7 @@ import { useMemo, type CSSProperties, type MouseEvent } from 'react'
 import { renderMarkdown } from '../lib/markdown'
 import { assetUrl } from '../lib/assets'
 import type { Theme } from '../lib/theme'
+import Icon from './Icon'
 import '../styles/tokens.css'
 import '../styles/themes.css'
 import '../styles/reader.css'
@@ -48,13 +49,13 @@ export default function Reader({ source, baseDir, theme, fontSize, onEdit, onLin
 
   return (
     <div
-      className={`theme-${theme}`}
+      className={`theme-${theme} snug-reader-pane`}
       style={{ '--reader-font-size': `${fontSize}px` } as CSSProperties}
     >
       {onEdit && (
         <div className="snug-toolbar">
           <button className="snug-tool-button" onClick={onEdit} title="Edit this note">
-            ✎ Edit
+            <Icon name="edit" />Edit
           </button>
         </div>
       )}

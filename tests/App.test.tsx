@@ -20,7 +20,7 @@ function tabElement(id: string): HTMLElement {
 }
 
 async function openFromLibrary(name: string) {
-  fireEvent.click(screen.getByText('▤ Library'))
+  fireEvent.click(screen.getByRole('button', { name: 'Library' }))
   fireEvent.click(await screen.findByRole('button', { name }))
 }
 
@@ -29,7 +29,7 @@ describe('App (browser preview)', () => {
     render(<App />)
     await screen.findByText(/Weekly reading notes/)
 
-    fireEvent.click(screen.getByText('✎ Edit'))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(visibleEditors()).toHaveLength(1)
 
     await openFromLibrary('ideas.md')
@@ -47,7 +47,7 @@ describe('App (browser preview)', () => {
     render(<App />)
     await screen.findByText(/Weekly reading notes/)
 
-    fireEvent.click(screen.getByText('▤ Library'))
+    fireEvent.click(screen.getByRole('button', { name: 'Library' }))
     fireEvent.click(await screen.findByRole('button', { name: 'ideas.md' }))
     fireEvent.click(await screen.findByRole('button', { name: 'weekly-notes.md' }))
 

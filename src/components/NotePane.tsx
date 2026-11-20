@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import Editor from './Editor'
+import Notice from './Notice'
 import Reader from './Reader'
 import { isChangedOnDisk, useDocument, type DocumentIo, type DraftIo } from '../hooks/useDocument'
 import { askYesNo } from '../lib/dialogs'
@@ -113,9 +114,11 @@ export default function NotePane({
 
   return (
     <div className="snug-pane" style={active ? undefined : { display: 'none' }}>
-      {doc.error && <div className="snug-error">{doc.error}</div>}
-      {doc.notice && <div className="snug-error">{doc.notice}</div>}
-      {message && <div className="snug-error">{message}</div>}
+      {doc.error && <Notice kind="error" message={doc.error} />}
+      {doc.notice && (
+        <Notice kind="info" message={doc.notice} onDismiss={doc.dismissNotice} />
+      )}
+      {message && <Notice kind="error" message={message} onDismiss={() => setMessage(null)} />}
       {editing && !doc.loading ? (
         <>
           <Editor

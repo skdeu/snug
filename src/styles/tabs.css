@@ -3,7 +3,7 @@
   align-items: center;
   gap: 4px;
   padding: 8px 10px 0;
-  border-bottom: 1px solid rgba(127, 127, 160, 0.25);
+  border-bottom: 1px solid var(--border);
   overflow-x: auto;
 }
 
@@ -11,10 +11,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(127, 127, 160, 0.1);
+  background: var(--surface-idle);
   border: 1px solid transparent;
   border-bottom: 0;
-  color: inherit;
+  color: var(--text-muted);
   border-radius: 6px 6px 0 0;
   padding: 7px 10px;
   cursor: pointer;
@@ -24,17 +24,20 @@
   max-width: 190px;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.snug-tab.active {
-  background: rgba(111, 107, 224, 0.24);
-  border-color: rgba(127, 127, 160, 0.3);
-}
-
-.snug-tab {
   user-select: none;
   -webkit-user-select: none;
   -webkit-user-drag: none;
+}
+
+.snug-tab:hover:not(.active) {
+  background: var(--surface-hover);
+}
+
+.snug-tab.active {
+  background: var(--accent-soft);
+  border-color: var(--border);
+  box-shadow: inset 0 2px 0 var(--accent);
+  color: var(--text);
 }
 
 .snug-tab.dragging {
@@ -48,22 +51,28 @@
   min-width: 0;
 }
 
+.snug-tab-dirty {
+  color: var(--accent);
+}
+
 .snug-tab-close {
   background: transparent;
   border: 0;
-  color: inherit;
+  color: var(--text-muted);
   cursor: pointer;
-  opacity: 0.6;
   font-size: 1em;
   line-height: 1;
   padding: 0;
 }
 
 .snug-new-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-left: 4px;
   background: transparent;
-  border: 1px solid rgba(127, 127, 160, 0.35);
-  color: inherit;
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 6px;
   padding: 4px 9px;
   cursor: pointer;
@@ -77,9 +86,9 @@
 
 .snug-find input {
   width: min(360px, 90%);
-  background: rgba(127, 127, 160, 0.12);
-  border: 1px solid rgba(127, 127, 160, 0.35);
-  color: inherit;
+  background: var(--surface-idle);
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 6px;
   padding: 5px 10px;
   font: inherit;

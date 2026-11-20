@@ -25,12 +25,25 @@ pub enum View {
     Library,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Palette {
+    Graphite,
+    Harbor,
+    Umber,
+    Slate,
+    Ash,
+}
+
+/// Missing keys take their defaults, so a file from before a setting existed keeps the rest.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppSettings {
     pub theme: Theme,
     pub view: View,
     pub font_size: u32,
     pub last_folder: Option<String>,
+    pub palette: Palette,
 }
 
 impl Default for AppSettings {
@@ -40,6 +53,7 @@ impl Default for AppSettings {
             view: View::Focus,
             font_size: 18,
             last_folder: None,
+            palette: Palette::Graphite,
         }
     }
 }
@@ -130,6 +144,7 @@ mod tests {
             view: View::Library,
             font_size: 20,
             last_folder: Some("C:/notes".to_string()),
+            palette: Palette::Umber,
         };
         let json = serde_json::to_string(&settings).unwrap();
         let back: AppSettings = serde_json::from_str(&json).unwrap();
@@ -166,5 +181,28 @@ mod tests {
         let current = AppSettings::default();
         assert!(merge_settings(&current, serde_json::json!({ "theme": "neon" })).is_err());
         assert!(merge_settings(&current, serde_json::json!(["not", "an", "object"])).is_err());
+    }
+
+    #[test]
+    fn defaults_use_the_graphite_palette() {
+        assert_eq!(AppSettings::default().palette, Palette::Graphite);
+    }
+
+    #[test]
+    fn a_file_without_a_palette_keeps_its_other_settings() {
+        let json = r#"{"theme":"light","view":"library","font_size":20,"last_folder":"C:/notes"}"#;
+        let settings: AppSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.theme, Theme::Light);
+        assert_eq!(settings.view, View::Library);
+        assert_eq!(settings.font_size, 20);
+        assert_eq!(settings.palette, Palette::Graphite);
+    }
+
+    #[test]
+    fn merge_sets_the_palette_and_rejects_unknown_ones() {
+        let current = AppSettings::default();
+        let next = merge_settings(&current, serde_json::json!({ "palette": "ash" })).unwrap();
+        assert_eq!(next.palette, Palette::Ash);
+        assert!(merge_settings(&current, serde_json::json!({ "palette": "neon" })).is_err());
     }
 }

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import type { Palette } from './palettes'
 
 export type Theme = 'dark' | 'light'
 export type View = 'focus' | 'library'
@@ -8,6 +9,7 @@ export interface AppSettings {
   view: View
   font_size: number
   last_folder: string | null
+  palette: Palette
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -15,6 +17,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   view: 'focus',
   font_size: 18,
   last_folder: null,
+  palette: 'graphite',
 }
 
 export interface SettingsIo {

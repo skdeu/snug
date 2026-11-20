@@ -4,7 +4,7 @@ Date: 2026-11-19
 Status: approved by SK on 2026-11-19, with amendments
 
 **App name:** Snug — "a cozy home for your notes."
-**Project location:** `the projects folder` is the collection root for SK's projects (folder name used exactly as he wrote it); this project lives in `the repository root`. All source, assets and build output live there.
+**Project location:** `the projects folder` is the collection root for SK's projects (folder name used exactly as he wrote it); this project lives in `the repository`. All source, assets and build output live there.
 
 ## Intent and the why
 
@@ -58,7 +58,7 @@ These are settled; the builder does not need to revisit them.
 11. **Local images (agent's call):** notes that reference relative images (e.g. `![img](./image.png)`) must display them. The Rust side resolves paths relative to the note's own folder and grants **scoped read access only** to that folder (or the opened library root). Remote URLs are not required in v1.
 12. **WebView2 (agent's call, verified 2026-11-19):** SK's machine is Windows 10 Home with WebView2 runtime 157 already installed, so the installer does **not** bundle or download the runtime. If it is ever missing on another machine, the app shows a clear message pointing to Microsoft's WebView2 installer. The app itself stays fully offline.
 13. **Document/session model (SK's call):** when a second `.md` file is opened while Snug is running, it opens in a **new window** by default. **New tab** is also supported as an additional selectable mode (a setting plus an "open in new tab" action), so the user can choose. Both modes need their own unsaved-changes guard and correct edit/save routing. Replacing the current document is not the default.
-14. **Branding:** the app is called **Snug**, with a custom logo generated for it and stored under `assets\`. The name and logo are part of the product, not placeholders.
+14. **Branding:** the app is called **Snug**, with a custom logo generated for it and stored under `the repository\assets\`. The name and logo are part of the product, not placeholders.
 
 ## What the builder decides
 

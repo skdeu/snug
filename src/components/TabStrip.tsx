@@ -1,6 +1,7 @@
 import { useRef, useState, type PointerEvent } from 'react'
 import type { Tab } from '../lib/session'
 import { basename } from '../lib/paths'
+import Icon from './Icon'
 
 interface TabStripProps {
   tabs: Tab[]
@@ -101,11 +102,13 @@ export default function TabStrip({
   }
 
   return (
-    <div className="snug-tabbar" ref={stripRef}>
+    <div className="snug-tabbar" ref={stripRef} role="tablist">
       {tabs.map((tab) => (
         <div
           key={tab.id}
           data-tab-id={tab.id}
+          role="tab"
+          aria-selected={tab.id === activeId}
           className={[
             'snug-tab',
             tab.id === activeId ? 'active' : '',
@@ -130,7 +133,11 @@ export default function TabStrip({
           }}
         >
           <span className="snug-tab-title">
-            {tab.dirty ? '● ' : ''}
+            {tab.dirty && (
+              <span className="snug-tab-dirty" aria-hidden="true">
+                ●{' '}
+              </span>
+            )}
             {basename(tab.path)}
           </span>
           <button
@@ -143,12 +150,13 @@ export default function TabStrip({
               onClose(tab.id)
             }}
           >
-            ×
+            <Icon name="close" size={12} />
           </button>
         </div>
       ))}
       <button type="button" className="snug-new-tab" onClick={onNew} title="Open another note">
-        + Open note
+        <Icon name="plus" size={12} />
+        Open note
       </button>
     </div>
   )

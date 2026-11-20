@@ -10,6 +10,21 @@ use tauri::{AppHandle, WebviewWindow};
 
 use crate::windows::{self, Placement, WorkArea};
 
+/// The native handle of a Tauri window, as a number. Only Windows has one.
+macro_rules! window_hwnd {
+    ($window:expr) => {{
+        #[cfg(windows)]
+        {
+            $window.hwnd().ok().map(|handle| handle.0 as usize)
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = &$window;
+            None::<usize>
+        }
+    }};
+}
+
 /// One window's tabs, its active tab, and where it was (physical pixels).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SavedWindow {
@@ -108,24 +123,20 @@ pub fn forget(label: &str) {
 /// `force` writes the file at once; otherwise writes are spaced out.
 pub fn remember_bounds(window: &tauri::Window, force: bool) {
     let label = window.label().to_string();
-    let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) else {
+    let (Ok(position), Ok(outer), Ok(inner)) =
+        (window.outer_position(), window.outer_size(), window.inner_size())
+    else {
         return;
     };
     // A minimised window reports an off-screen position. That is not where the user left it.
     if position.x < -10_000 || position.y < -10_000 {
         return;
     }
-    let bounds = Bounds {
-        x: position.x,
-        y: position.y,
-        width: size.width,
-        height: size.height,
-    };
-    let maximized = window.is_maximized().unwrap_or(false);
+    let (bounds, maximized) = geometry(window_hwnd!(window), position, outer, inner);
     with_state(|state| {
         let updated = match state.open.iter_mut().find(|(open, _)| *open == label) {
             Some((_, entry)) => {
-                entry.bounds = bounds_to_keep(entry.bounds, maximized, Some(bounds));
+                entry.bounds = Some(bounds);
                 entry.maximized = Some(maximized);
                 true
             }
@@ -147,16 +158,24 @@ pub fn remember_bounds(window: &tauri::Window, force: bool) {
 /// as maximized. A maximized window overhangs by a few pixels for its resize border.
 const MAXIMIZED_TOLERANCE: f64 = 24.0;
 
-/// True when each edge of `bounds` is within 24 physical pixels of `area`'s matching edge.
+/// How much shorter than the work area a maximized window's client height may be: the
+/// title bar and frame sit between the outer top and the client area. About 45 px at
+/// scale 2.0; 96 physical px covers scales up to about 300%.
+const CAPTION_ALLOWANCE: f64 = 96.0;
+
+/// True when the left, top and right edges of `bounds` are within 24 physical pixels of
+/// `area`'s, and the height fills the work area allowing for the title bar. The height is
+/// the client size, so the bottom edge is not compared: it sits above the work area bottom.
 pub fn looks_maximized(bounds: Bounds, area: WorkArea) -> bool {
     let left = bounds.x as f64;
     let top = bounds.y as f64;
     let right = left + bounds.width as f64;
-    let bottom = top + bounds.height as f64;
+    let height = bounds.height as f64;
     (left - area.left).abs() <= MAXIMIZED_TOLERANCE
         && (top - area.top).abs() <= MAXIMIZED_TOLERANCE
         && (right - (area.left + area.width)).abs() <= MAXIMIZED_TOLERANCE
-        && (bottom - (area.top + area.height)).abs() <= MAXIMIZED_TOLERANCE
+        && height >= area.height - CAPTION_ALLOWANCE
+        && height <= area.height + MAXIMIZED_TOLERANCE
 }
 
 /// Upgrade a v1.1 entry (`maximized` is `None`): a window whose geometry fills the work
@@ -175,18 +194,106 @@ pub fn settle_maximized(window: &mut SavedWindow, area: Option<WorkArea>) {
     }
 }
 
-/// While maximized the window reports its screen-filling size, which is not the size to
-/// come back to, so keep the previous normal bounds. Otherwise use the current ones.
-pub fn bounds_to_keep(
-    previous: Option<Bounds>,
-    maximized: bool,
-    current: Option<Bounds>,
-) -> Option<Bounds> {
-    if maximized {
-        previous
-    } else {
-        current
+/// The normal (restored) bounds from a window-placement rectangle (left, top, right,
+/// bottom, outer, physical pixels). `frame` is the outer size minus the inner size, so
+/// the result has the outer top-left and the inner (client) size, like `Bounds` elsewhere.
+pub fn normal_bounds(normal_rect: (i32, i32, i32, i32), frame: (u32, u32)) -> Bounds {
+    let (left, top, right, bottom) = normal_rect;
+    let outer_width = (right - left).max(0) as u32;
+    let outer_height = (bottom - top).max(0) as u32;
+    Bounds {
+        x: left,
+        y: top,
+        width: outer_width.saturating_sub(frame.0),
+        height: outer_height.saturating_sub(frame.1),
     }
+}
+
+#[cfg(windows)]
+mod native {
+    use std::ffi::c_void;
+
+    #[repr(C)]
+    struct Point {
+        x: i32,
+        y: i32,
+    }
+
+    #[repr(C)]
+    struct Rect {
+        left: i32,
+        top: i32,
+        right: i32,
+        bottom: i32,
+    }
+
+    #[repr(C)]
+    struct WindowPlacement {
+        length: u32,
+        flags: u32,
+        show_cmd: u32,
+        min_position: Point,
+        max_position: Point,
+        normal_position: Rect,
+    }
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetWindowPlacement(hwnd: *mut c_void, placement: *mut WindowPlacement) -> i32;
+    }
+
+    const SW_SHOWMAXIMIZED: u32 = 3;
+
+    /// (maximized, normal rectangle as left, top, right, bottom). Windows keeps the normal
+    /// rectangle consistent through a maximize, unlike the window's own events.
+    pub fn placement(hwnd: usize) -> Option<(bool, (i32, i32, i32, i32))> {
+        let mut info = WindowPlacement {
+            length: std::mem::size_of::<WindowPlacement>() as u32,
+            flags: 0,
+            show_cmd: 0,
+            min_position: Point { x: 0, y: 0 },
+            max_position: Point { x: 0, y: 0 },
+            normal_position: Rect { left: 0, top: 0, right: 0, bottom: 0 },
+        };
+        // SAFETY: `info` is a correctly sized, initialised WINDOWPLACEMENT that lives for
+        // the call; a bad handle only makes the call fail.
+        let ok = unsafe { GetWindowPlacement(hwnd as *mut c_void, &mut info) };
+        if ok == 0 {
+            return None;
+        }
+        let rect = &info.normal_position;
+        Some((
+            info.show_cmd == SW_SHOWMAXIMIZED,
+            (rect.left, rect.top, rect.right, rect.bottom),
+        ))
+    }
+}
+
+/// Where a window is, and whether it is maximized, read from Windows. While maximized the
+/// bounds are the normal ones to return to. If Windows cannot say, the current geometry
+/// and not maximized.
+fn geometry(
+    hwnd: Option<usize>,
+    position: tauri::PhysicalPosition<i32>,
+    outer: tauri::PhysicalSize<u32>,
+    inner: tauri::PhysicalSize<u32>,
+) -> (Bounds, bool) {
+    let current = Bounds {
+        x: position.x,
+        y: position.y,
+        width: inner.width,
+        height: inner.height,
+    };
+    #[cfg(windows)]
+    if let Some((true, rect)) = hwnd.and_then(native::placement) {
+        let frame = (
+            outer.width.saturating_sub(inner.width),
+            outer.height.saturating_sub(inner.height),
+        );
+        return (normal_bounds(rect, frame), true);
+    }
+    let _ = (hwnd, outer);
+    (current, false)
 }
 
 /// Only an explicit `Some(true)` restores maximized. `None` is an unsettled v1.1 entry.
@@ -261,26 +368,26 @@ pub fn save_session(
     active: Option<String>,
 ) -> Result<(), String> {
     let label = window.label().to_string();
-    let bounds = match (window.outer_position(), window.inner_size()) {
-        (Ok(position), Ok(size)) => Some(Bounds {
-            x: position.x,
-            y: position.y,
-            width: size.width,
-            height: size.height,
-        }),
+    let measured = match (window.outer_position(), window.outer_size(), window.inner_size()) {
+        (Ok(position), Ok(outer), Ok(inner)) => {
+            Some(geometry(window_hwnd!(window), position, outer, inner))
+        }
         _ => None,
     };
-    let maximized = window.is_maximized().unwrap_or(false);
     with_state(|state| {
         let previous = state
             .open
             .iter()
             .find(|(open, _)| *open == label)
             .and_then(|(_, entry)| entry.bounds);
+        let (bounds, maximized) = match measured {
+            Some((bounds, maximized)) => (Some(bounds), maximized),
+            None => (previous, false),
+        };
         let saved = SavedWindow {
             tabs,
             active,
-            bounds: bounds_to_keep(previous, maximized, bounds),
+            bounds,
             maximized: Some(maximized),
         };
         match state.open.iter_mut().find(|(open, _)| *open == label) {
@@ -420,7 +527,7 @@ mod tests {
     fn v11_maximized_geometry_upgrades_to_maximized() {
         let json = r#"{"windows":[{"tabs":["C:\\notes\\README.md"],"active":"C:\\notes\\README.md","bounds":{"x":-13,"y":-13,"width":2880,"height":1659}}]}"#;
         let mut file: SessionFile = serde_json::from_str(json).unwrap();
-        let area = WorkArea { left: 0.0, top: 0.0, width: 2880.0, height: 1659.0 };
+        let area = WorkArea { left: 0.0, top: 0.0, width: 2880.0, height: 1704.0 };
         settle_maximized(&mut file.windows[0], Some(area));
         assert_eq!(file.windows[0].maximized, Some(true));
         assert_eq!(file.windows[0].bounds, None);
@@ -466,16 +573,32 @@ mod tests {
 
     #[test]
     fn a_maximized_window_beside_a_taskbar_still_counts() {
-        let area = WorkArea { left: 0.0, top: 0.0, width: 2880.0, height: 1633.0 };
+        // SK's display: 1440x900 logical at scale 2.0, work area 2880x1704 physical.
+        // The height is the client size, so the title bar keeps the bottom edge ~45 px short.
+        let area = WorkArea { left: 0.0, top: 0.0, width: 2880.0, height: 1704.0 };
         assert!(looks_maximized(Bounds { x: -13, y: -13, width: 2880, height: 1659 }, area));
     }
 
     #[test]
-    fn bounds_to_keep_holds_the_normal_size_while_maximized() {
-        let normal = Bounds { x: 10, y: 20, width: 800, height: 600 };
-        let big = Bounds { x: -13, y: -13, width: 2880, height: 1659 };
-        assert_eq!(bounds_to_keep(Some(normal), true, Some(big)), Some(normal));
-        assert_eq!(bounds_to_keep(Some(normal), false, Some(big)), Some(big));
+    fn a_half_height_window_is_not_maximized() {
+        let area = WorkArea { left: 0.0, top: 0.0, width: 2880.0, height: 1704.0 };
+        assert!(!looks_maximized(Bounds { x: 0, y: 0, width: 1440, height: 900 }, area));
+    }
+
+    #[test]
+    fn normal_bounds_subtracts_the_frame_from_the_normal_rectangle() {
+        let bounds = normal_bounds((500, 300, 1600, 950), (26, 71));
+        assert_eq!(bounds, Bounds { x: 500, y: 300, width: 1074, height: 579 });
+    }
+
+    #[test]
+    fn a_maximized_entry_with_normal_bounds_restores_them_maximized() {
+        let mut entry = window(&["C:\\n\\a.md"], None);
+        entry.bounds = Some(normal_bounds((500, 300, 1600, 950), (26, 71)));
+        entry.maximized = Some(true);
+        let plan = plan_for_first(Some(&entry));
+        assert_eq!(plan.bounds, Some(Bounds { x: 500, y: 300, width: 1074, height: 579 }));
+        assert!(plan.maximized);
     }
 
     #[test]

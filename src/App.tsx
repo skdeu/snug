@@ -1,8 +1,11 @@
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState, type CSSProperties } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import LibrarySidebar from './components/LibrarySidebar'
 import NotePane from './components/NotePane'
 import TabStrip from './components/TabStrip'
+import Toolbar from './components/Toolbar'
+import Notice from './components/Notice'
+import { paletteTokens, resolvePalette } from './lib/palettes'
 import {
   discardDraft,
   noDraftIo,
@@ -18,6 +21,7 @@ import { basename, dirnameOf, isMarkdownFile, resolveNotePath } from './lib/path
 import { IS_TAURI, listenTo } from './lib/events'
 import { askYesNo } from './lib/dialogs'
 import './styles/tabs.css'
+import './styles/glass.css'
 
 const NOTES: Record<string, string> = {
   'weekly-notes.md': `# Weekly reading notes
@@ -399,7 +403,16 @@ export default function App() {
   })
 
   return (
-    <div className={`theme-${settings.theme}`} style={{ display: 'flex' }}>
+    <div
+      className={`theme-${settings.theme} snug-window`}
+      style={
+        {
+          display: 'flex',
+          ...paletteTokens(resolvePalette(settings.palette), settings.theme),
+        } as CSSProperties
+      }
+    >
+      <div className="snug-frame">
       {settings.view === 'library' && (
         <LibrarySidebar
           files={files}
@@ -412,17 +425,15 @@ export default function App() {
         />
       )}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <div className="snug-toolbar">
-          <button className="snug-tool-button" onClick={toggleLibrary}>
-            ▤ Library
-          </button>
-          <button className="snug-tool-button" onClick={toggleTheme}>
-            {settings.theme === 'dark' ? '☀ Light' : '☾ Dark'}
-          </button>
-          <button className="snug-tool-button" onClick={() => void openFile()}>
-            ⌕ Open
-          </button>
-        </div>
+        <Toolbar
+          libraryOpen={settings.view === 'library'}
+          theme={settings.theme}
+          onToggleLibrary={toggleLibrary}
+          onToggleTheme={toggleTheme}
+          onOpen={() => void openFile()}
+          palette={resolvePalette(settings.palette)}
+          onPalette={(palette) => void saveSettings({ palette })}
+        />
         {findOpen && (
           <div className="snug-find">
             <input
@@ -453,11 +464,7 @@ export default function App() {
           onDetach={(id) => void detachTab(id)}
           onNew={() => void openFile()}
         />
-        {notice && (
-          <div className="snug-error" role="alert" onClick={() => setNotice(null)}>
-            {notice}
-          </div>
-        )}
+        {notice && <Notice kind="error" message={notice} onDismiss={() => setNotice(null)} />}
         {session.tabs.length === 0 && (
           <div className="snug-empty">
             <p>No note open.</p>
@@ -482,6 +489,7 @@ export default function App() {
             onOpenNote={openPath}
           />
         ))}
+      </div>
       </div>
     </div>
   )

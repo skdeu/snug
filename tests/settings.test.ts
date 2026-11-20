@@ -13,11 +13,18 @@ describe('settings', () => {
       view: 'focus',
       font_size: 18,
       last_folder: null,
+      palette: 'graphite',
     })
   })
 
   it('update_settings_sends_only_the_changes_and_returns_the_saved_settings', async () => {
-    const saved: AppSettings = { theme: 'light', view: 'focus', font_size: 18, last_folder: null }
+    const saved: AppSettings = {
+      theme: 'light',
+      view: 'focus',
+      font_size: 18,
+      last_folder: null,
+      palette: 'graphite',
+    }
     const io: SettingsIo = {
       load: async () => null,
       update: vi.fn(async () => saved),
